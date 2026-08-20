@@ -28,7 +28,7 @@ def test_unknown_config_key_is_rejected(tmp_path: Path) -> None:
         load_config(path)
 
 
-def test_hard_coded_platform_path_is_rejected(tmp_path: Path) -> None:
+def test_hard_coded_path_outside_platform_overlay_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / "unsafe.yaml"
     path.write_text(
         "kind: storage\nschema_version: 1\nunsafe: /mnt/vla/runs\n",
@@ -37,3 +37,8 @@ def test_hard_coded_platform_path_is_rejected(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="hard-coded platform path"):
         load_config(path)
+
+
+def test_platform_overlay_may_define_host_specific_defaults() -> None:
+    config = load_config(ROOT / "configs" / "platform" / "colab.yaml")
+    assert config.storage.data_root_default.startswith("/content/drive/")

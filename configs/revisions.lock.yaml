@@ -1,8 +1,8 @@
 kind: revisions
 schema_version: 1
-status: provisional_m0
+status: resolved_m1_pending_hardware
 snapshot_date: "2026-08-20"
-python: "3.12.x"
+python: "3.12.8"
 dataset:
   repo_id: nvidia/LIBERO_LeRobot_v3
   revision: e5907374380b8f96511957e6ba5582be52a1e179
@@ -13,15 +13,24 @@ model:
   revision: c83c3163b8ca9b7e67c509fffd9121e66cb96205
 source:
   lerobot_git: d451fe4f1f1b00a812f95aa9534389b5e42ab155
+  lerobot_version: 0.6.2
+  libero_assets_repo_id: lerobot/libero-assets
+  libero_assets_revision: 0b3ea86be5fe169d0fd036ae63d1070ec09e90f6
   libero_runtime_package: hf-libero==0.1.4
   libero_upstream_reference: 8f1084e3132a39270c3a13ebe37270a43ece2a01
 runtime:
-  torch: 2.11.0+cu128
-  torchvision: 0.26.0+cu128
-  cuda_wheel_variant: cu128
-  mujoco: 3.8.1
-  transformers: 5.5.4
-  peft: 0.20.0
   accelerate: 1.14.0
+  hf_egl_probe: 1.0.2
+  hf_libero: 0.1.4
+  lerobot: 0.6.2
+  min_nvidia_driver: 570.86.10
+  mujoco: 3.8.1
   numpy: 2.2.6
+  peft: 0.20.0
+  tensorboard: 2.20.0
+  torch: 2.11.0+cu128
+  torchcodec: 0.11.1
+  torchvision: 0.26.0+cu128
+  transformers: 5.5.4
+  cuda_wheel_variant: cu128
   ffmpeg: 7.1.1

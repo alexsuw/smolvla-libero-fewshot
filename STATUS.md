@@ -41,8 +41,57 @@ artifacts/validation/M0/environment.txt
 No dataset download, model load, simulator run, training, GPU allocation or
 external artifact upload was performed in M0.
 
+## M1 — Pinned runtime and doctor
+
+Status: implementation and static validation complete; full hardware acceptance
+is consciously deferred at the user's request until the final GPU purchase.
+Revision state remains `resolved_m1_pending_hardware`, not `validated_m1`.
+
+Completed:
+
+- universal lock with Linux-only cu128/LeRobot/LIBERO/PEFT runtime;
+- exact Python 3.12.8 and upstream model/dataset/source/assets revisions;
+- secure local and remote revision validation;
+- VM/Colab bootstrap with pinned LIBERO assets and non-overwriting manifests;
+- environment-only paths, Google Drive durability detection and round-trip;
+- static/full doctor profiles with structured JSON/Markdown reports;
+- full-profile checks for driver/CUDA/BF16, EGL, two cameras, 8D state,
+  FFmpeg 7.1.1 AV1, disk reserve and durable storage;
+- Colab Drive launcher and final RTX VM handoff documentation.
+
+Static result on 2026-08-21:
+
+- `uv lock --check`: passed, 165 packages resolved;
+- remote model/dataset/source/assets revisions: passed;
+- CLI help validation: 28 commands passed;
+- Git safety: passed;
+- pytest: 54 passed, 2 hardware/storage tests skipped intentionally;
+- static doctor: required checks passed, `acceptance_complete=false` by design.
+
+Local evidence:
+
+```text
+artifacts/validation/M1/acceptance-static.log
+artifacts/validation/M1/upstream_revisions.json
+artifacts/validation/M1/upstream_revisions.log
+artifacts/validation/M1/environment.txt
+artifacts/validation/M1/doctor-static-*/
+```
+
+Deferred hardware gates:
+
+- install `gpu` extra on Linux;
+- verify NVIDIA driver `>=570.86.10`, CUDA architecture and BF16;
+- render MuJoCo/LIBERO through EGL;
+- reset/step with two cameras and 8D state;
+- verify exact system FFmpeg 7.1.1 AV1;
+- verify persistent SSD or mounted Google Drive.
+
+These checks must pass before revision status changes to `validated_m1` and
+before any training. Static CI can never close this gate.
+
 ## Next milestone
 
-M1 — verify exact Python/CUDA/LeRobot/MuJoCo pins on Linux, implement bootstrap
-and `doctor.py`, then validate RTX 6000 Blackwell GPU visibility, BF16, EGL,
-ffmpeg and durable/object storage.
+M2 — metadata-only dataset download, schema/count/task inspection, exact split
+verification and automatic no-target-leakage gate. This stage remains CPU-only;
+GPU purchase is still unnecessary.

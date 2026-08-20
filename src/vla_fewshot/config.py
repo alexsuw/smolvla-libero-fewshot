@@ -26,19 +26,28 @@ class RevisionRef(StrictModel):
 
 class SourcePins(StrictModel):
     lerobot_git: str = Field(pattern=r"^[0-9a-f]{40}$")
+    lerobot_version: str
+    libero_assets_repo_id: str
+    libero_assets_revision: str = Field(pattern=r"^[0-9a-f]{40}$")
     libero_runtime_package: str
     libero_upstream_reference: str = Field(pattern=r"^[0-9a-f]{40}$")
 
 
 class RuntimePins(StrictModel):
-    torch: str
-    torchvision: str
-    cuda_wheel_variant: str
-    mujoco: str
-    transformers: str
-    peft: str
     accelerate: str
+    hf_egl_probe: str
+    hf_libero: str
+    lerobot: str
+    min_nvidia_driver: str
+    mujoco: str
     numpy: str
+    peft: str
+    tensorboard: str
+    torch: str
+    torchcodec: str
+    torchvision: str
+    transformers: str
+    cuda_wheel_variant: str
     ffmpeg: str
 
 
@@ -50,9 +59,13 @@ class DatasetPins(RevisionRef):
 class RevisionsConfig(StrictModel):
     kind: Literal["revisions"]
     schema_version: Literal[1]
-    status: Literal["provisional_m0", "validated_m1"]
+    status: Literal[
+        "provisional_m0",
+        "resolved_m1_pending_hardware",
+        "validated_m1",
+    ]
     snapshot_date: str
-    python: str
+    python: str = Field(pattern=r"^3\.12\.\d+$")
     dataset: DatasetPins
     model: RevisionRef
     source: SourcePins
@@ -88,6 +101,10 @@ class HardwareConfig(StrictModel):
 
 
 class StoragePolicy(StrictModel):
+    data_root_default: str
+    scratch_root_default: str
+    durability_backend: Literal["google_drive", "persistent_disk"]
+    drive_mount_root: str | None = None
     durable: bool
     reserve_gb: int = Field(ge=1)
     require_verified_backup: bool
@@ -109,6 +126,17 @@ class PlatformConfig(StrictModel):
     hardware: HardwareConfig
     storage: StoragePolicy
     preemption: PreemptionConfig
+
+    @model_validator(mode="after")
+    def validate_storage_backend(self) -> "PlatformConfig":
+        if self.name == "colab":
+            if self.storage.durability_backend != "google_drive":
+                raise ValueError("Colab must use the google_drive durability backend")
+            if self.storage.drive_mount_root is None:
+                raise ValueError("Colab requires drive_mount_root")
+        elif self.storage.durability_backend != "persistent_disk":
+            raise ValueError("GPU VM must use the persistent_disk durability backend")
+        return self
 
 
 class TargetTask(StrictModel):
@@ -294,8 +322,9 @@ def load_config(path: str | Path) -> ConfigModel:
         raw = yaml.safe_load(handle)
     if not isinstance(raw, dict):
         raise ValueError(f"{config_path} must contain a YAML mapping")
-    _reject_hard_coded_paths(raw)
     kind = raw.get("kind")
+    if kind != "platform":
+        _reject_hard_coded_paths(raw)
     model = MODEL_BY_KIND.get(kind)
     if model is None:
         raise ValueError(

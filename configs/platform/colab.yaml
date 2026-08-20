@@ -12,7 +12,11 @@ hardware:
   allow_tf32: true
   physical_batch_size: auto_fit
 storage:
-  durable: false
+  data_root_default: /content/drive/MyDrive/vla-fewshot
+  scratch_root_default: /content/vla_scratch
+  durability_backend: google_drive
+  drive_mount_root: /content/drive
+  durable: true
   reserve_gb: 10
   require_verified_backup: true
 preemption:

@@ -6,7 +6,8 @@
 
 ## Текущий статус
 
-Реализуется M0: каркас репозитория, строгие конфиги, безопасные CLI и тесты.
+M0 завершён. M1 runtime/doctor реализуется без аренды GPU; hardware acceptance
+останется pending до финального RTX/Colab этапа.
 Обучение и платные GPU-запуски до прохождения smoke-gates M1–M5 запрещены.
 Актуальный прогресс и evidence перечислены в [`STATUS.md`](STATUS.md).
 
@@ -17,7 +18,7 @@
 ```bash
 uv sync
 uv run pytest -q
-make check
+make check-m1-static
 ```
 
 Посмотреть интерфейс будущей команды можно без запуска вычислений:
@@ -45,7 +46,10 @@ uv run python scripts/train_seen.py --help
 Финальный VM overlay будет использовать auto-detection, BF16 после smoke-test
 и фиксированный effective batch. Код не предполагает конкретный объём VRAM:
 physical batch подбирается до создания final run, затем фиксируется в manifest.
-Полный CUDA/LeRobot/MuJoCo runtime будет закреплён и проверен в M1.
+Linux cu128/LeRobot/MuJoCo runtime уже закреплён в universal `uv.lock`.
+Фактическая проверка GPU, BF16, EGL и VRAM выполняется позднее по
+[`docs/GPU_VM_SETUP.md`](docs/GPU_VM_SETUP.md); static CI не считается
+hardware evidence.
 
 ## Основные каталоги
 

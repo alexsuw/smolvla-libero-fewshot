@@ -12,6 +12,10 @@ hardware:
   allow_tf32: true
   physical_batch_size: auto_fit
 storage:
+  data_root_default: /mnt/vla
+  scratch_root_default: /local_nvme/vla_scratch
+  durability_backend: persistent_disk
+  drive_mount_root: null
   durable: true
   reserve_gb: 50
   require_verified_backup: true

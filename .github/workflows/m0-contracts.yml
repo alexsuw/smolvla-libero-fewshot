@@ -1,4 +1,4 @@
-name: M0 contracts
+name: M0 and M1 static contracts
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  m0:
+  static-contracts:
     name: Python 3.12 / Ubuntu
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -27,5 +27,8 @@ jobs:
       - name: Sync locked environment
         run: uv sync --frozen
 
-      - name: Run M0 acceptance checks
-        run: make check
+      - name: Verify universal lock is current
+        run: uv lock --check
+
+      - name: Run M0 and non-GPU M1 checks
+        run: make check-m1-static
