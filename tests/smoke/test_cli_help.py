@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -37,6 +38,8 @@ def test_shell_cli_help_is_non_mutating(script: Path) -> None:
 
 
 def test_training_stub_fails_before_compute() -> None:
+    env = os.environ.copy()
+    env.pop("VLA_DATASETS_DIR", None)
     completed = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "train_seen.py")],
         cwd=ROOT,
@@ -44,6 +47,7 @@ def test_training_stub_fails_before_compute() -> None:
         check=False,
         text=True,
         timeout=20,
+        env=env,
     )
     assert completed.returncode == 2
     assert "no compute or external write was started" in completed.stderr

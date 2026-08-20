@@ -17,6 +17,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+data = [
+  "huggingface-hub==1.28.0",
+  "pyarrow==25.0.1",
+]
 gpu = [
   "accelerate==1.14.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
   "hf-egl-probe==1.0.2; sys_platform == 'linux' and platform_machine == 'x86_64'",
@@ -44,8 +48,10 @@ packages = ["src/vla_fewshot"]
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers"
 testpaths = ["tests"]
+pythonpath = ["."]
 markers = [
   "integration: requires downloaded data or external services",
+  "huggingface: requires a live Hugging Face metadata download",
   "gpu: requires a CUDA GPU",
 ]
 
@@ -53,6 +59,7 @@ markers = [
 package = true
 required-environments = [
   "sys_platform == 'linux' and platform_machine == 'x86_64'",
+  "sys_platform == 'darwin' and platform_machine == 'arm64'",
 ]
 
 [[tool.uv.index]]

@@ -44,3 +44,25 @@ pinned upstream revisions.
   substitute it; full doctor requires exact 7.1.1 and a real AV1 round-trip.
 - No Linux GPU was available during M1 implementation. Revision status remains
   `resolved_m1_pending_hardware`; static doctor output cannot close M1.
+
+## M2 implementation
+
+- Dataset files live under a revision-encoded directory
+  `<datasets>/nvidia_LIBERO_LeRobot_v3/<40-char SHA>/`. Python never hard-codes
+  `/mnt/vla` or `/content/drive`.
+- Default download is metadata-only (`info.json`, `stats.json`, parquet). MP4
+  files require `--include-videos` and exactly one `--suite`. Inspection sets
+  `videos_decoded: false` and never decodes the corpus.
+- `huggingface-hub==1.28.0` and `pyarrow==25.0.1` are the CPU `data` extra so
+  macOS/CI can inspect metadata without the Linux `gpu` extra.
+- Logical subsets write `subset_manifest.json` with nested `N=5/10/25` IDs and
+  refuse to overwrite a different episode list. Videos are not copied.
+- `assert_no_leakage` is invoked from `train_seen`, `train_target` and
+  `collect_results` when pinned suite metadata is already present. Those
+  commands still refuse training until later milestones.
+- Wrist camera key in this dataset revision remains
+  `observation.images.wrist_image`. Environment mapping to LeRobot `image2` is
+  still an M3 decision.
+- Pinned `tasks.parquet` stores task strings in `__index_level_0__` (pandas
+  index leftover) plus integer `task_index`. Inspection accepts `task`,
+  `task_text`, or `__index_level_0__`.

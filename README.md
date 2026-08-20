@@ -6,8 +6,8 @@
 
 ## Текущий статус
 
-M0 завершён. M1 runtime/doctor реализуется без аренды GPU; hardware acceptance
-останется pending до финального RTX/Colab этапа.
+M0 и реализация M1 завершены; hardware acceptance M1 остаётся pending до
+финального RTX/Colab этапа. M2 (metadata/split/leakage) реализуется на CPU.
 Обучение и платные GPU-запуски до прохождения smoke-gates M1–M5 запрещены.
 Актуальный прогресс и evidence перечислены в [`STATUS.md`](STATUS.md).
 
@@ -16,9 +16,9 @@ M0 завершён. M1 runtime/doctor реализуется без аренд�
 Требования: `uv` и Python 3.12.
 
 ```bash
-uv sync
+uv sync --frozen --extra data
 uv run pytest -q
-make check-m1-static
+make check-m2
 ```
 
 Посмотреть интерфейс будущей команды можно без запуска вычислений:
@@ -30,6 +30,23 @@ uv run python scripts/train_seen.py --help
 До реализации соответствующего milestone вычислительные entry points
 завершаются с понятной ошибкой. Это защищает от случайного запуска training
 на неподготовленной машине.
+
+## Dataset metadata (M2)
+
+Metadata-only download не декодирует videos и пишет revision-encoded путь
+`<datasets>/nvidia_LIBERO_LeRobot_v3/<40-char SHA>/`.
+
+```bash
+export VLA_DATASETS_DIR="$HOME/.cache/vla-fewshot/datasets"
+uv run python scripts/download_dataset.py --output-root "$VLA_DATASETS_DIR"
+uv run python scripts/inspect_dataset.py --output-root "$VLA_DATASETS_DIR" \
+  --output-dir artifacts/validation/M2
+uv run python scripts/verify_split.py --output-root "$VLA_DATASETS_DIR"
+uv run python scripts/verify_no_leakage.py --output-root "$VLA_DATASETS_DIR"
+```
+
+Videos скачиваются только с `--include-videos` и ровно одним `--suite`.
+Python-код не содержит `/mnt/vla` или `/content/drive`.
 
 ## Принципы
 

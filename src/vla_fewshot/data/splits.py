@@ -68,3 +68,23 @@ class TargetSplits(_StrictModel):
 def load_target_splits(path: str | Path) -> TargetSplits:
     with Path(path).open("r", encoding="utf-8") as handle:
         return TargetSplits.model_validate(json.load(handle))
+
+
+def verify_splits_against_metadata(
+    splits: TargetSplits,
+    episode_ids_by_task: dict[str, list[int]],
+) -> None:
+    """Fail if tracked prefixes disagree with pinned metadata order."""
+
+    for slug, task in splits.tasks.items():
+        observed = episode_ids_by_task.get(slug, [])
+        if observed[:25] != task.episode_ids_first_25:
+            raise ValueError(
+                f"{slug}: metadata IDs {observed[:25]} != tracked "
+                f"{task.episode_ids_first_25}"
+            )
+        if len(observed) != task.available_count:
+            raise ValueError(
+                f"{slug}: available_count {task.available_count} != {len(observed)}"
+            )
+

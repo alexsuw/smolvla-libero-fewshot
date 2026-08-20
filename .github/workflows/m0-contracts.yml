@@ -1,4 +1,4 @@
-name: M0 and M1 static contracts
+name: M0-M2 static contracts
 
 on:
   push:
@@ -12,7 +12,7 @@ jobs:
   static-contracts:
     name: Python 3.12 / Ubuntu
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -24,11 +24,11 @@ jobs:
           python-version: "3.12.8"
           enable-cache: true
 
-      - name: Sync locked environment
-        run: uv sync --frozen
+      - name: Sync locked CPU environment with data extra
+        run: uv sync --frozen --extra data
 
       - name: Verify universal lock is current
         run: uv lock --check
 
-      - name: Run M0 and non-GPU M1 checks
-        run: make check-m1-static
+      - name: Run M0, non-GPU M1, and M2 checks
+        run: make check-m2

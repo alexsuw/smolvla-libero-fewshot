@@ -90,8 +90,56 @@ Deferred hardware gates:
 These checks must pass before revision status changes to `validated_m1` and
 before any training. Static CI can never close this gate.
 
+## M2 — Dataset inspection and exact split
+
+Status: implementation complete on CPU. Unit contracts do not require a GPU.
+Live Hugging Face metadata download is optional evidence and is not a paid
+hardware gate. M1 revision status stays `resolved_m1_pending_hardware`.
+
+Completed:
+
+- metadata-only pinned download with resume and revision-encoded paths;
+- inspection of schema, counts, task texts, episode IDs and stats without
+  decoding videos;
+- exact first-25 target prefixes and nested `N=5/10/25` budgets;
+- fail-closed no-leakage gate wired into `train_seen`, `train_target` and
+  `collect_results`;
+- logical subset manifests that refuse a different overwrite.
+
+Acceptance commands:
+
+```bash
+uv sync --frozen --extra data
+make check-m2
+```
+
+Local result on 2026-08-21:
+
+- `uv lock --check`: passed, 165 packages, extras `data` and `gpu`;
+- CLI help validation: 28 commands passed;
+- Git safety: passed;
+- pytest: 67 passed, 3 skipped without GPU/storage/live-HF env vars;
+- live metadata-only download: 19 files, 5.2 MB, no MP4;
+- `inspect_dataset`: `acceptance_complete=true`, `videos_decoded=false`;
+- `verify_split` and `verify_no_leakage`: passed on pinned revision
+  `e5907374380b8f96511957e6ba5582be52a1e179`.
+
+Local evidence:
+
+```text
+artifacts/validation/M2/inspection.json
+artifacts/validation/M2/inspection.md
+artifacts/validation/M2/target_episode_ids.json
+artifacts/validation/M2/verify-split.json
+artifacts/validation/M2/verify-leakage.json
+artifacts/validation/M2/acceptance.log
+```
+
+M1 revision status is unchanged: `resolved_m1_pending_hardware`. No training,
+simulator replay, model load or GPU allocation is part of M2.
+
 ## Next milestone
 
-M2 — metadata-only dataset download, schema/count/task inspection, exact split
-verification and automatic no-target-leakage gate. This stage remains CPU-only;
-GPU purchase is still unnecessary.
+M3 — LIBERO environment adapters, observation parity, state/action/gripper
+mapping and expert replay. This stage still does not require buying a GPU
+until you want hardware doctor or M5 smoke.

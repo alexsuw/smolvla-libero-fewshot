@@ -42,6 +42,16 @@ Bootstrap загружает LIBERO assets только по revision из
 Он никогда не удаляет существующие данные и не перезаписывает другой
 `~/.libero/config.yaml`.
 
+Metadata-only dataset download (M2) можно выполнить до покупки GPU:
+
+```bash
+export VLA_DATASETS_DIR=/mnt/vla/datasets
+uv sync --frozen --extra data
+uv run python scripts/download_dataset.py --output-root "$VLA_DATASETS_DIR"
+uv run python scripts/inspect_dataset.py --output-root "$VLA_DATASETS_DIR" \
+  --output-dir artifacts/validation/M2
+```
+
 ## Colab Drive validation
 
 Открыть `notebooks/colab_smoke.ipynb`, смонтировать Google Drive и выполнить

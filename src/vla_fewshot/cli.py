@@ -127,10 +127,21 @@ def build_stub_parser(command: str) -> argparse.ArgumentParser:
     return parser
 
 
+def refuse_until_milestone(command: str) -> int:
+    """Exit before compute with a stable unavailable-milestone message."""
+
+    spec = COMMANDS[command]
+    print(
+        f"{command} is intentionally unavailable until {spec.milestone}; "
+        "no compute or external write was started.",
+        file=sys.stderr,
+    )
+    return 2
+
+
 def run_milestone_stub(command: str, argv: list[str] | None = None) -> int:
     """Parse the stable interface, then refuse execution until its milestone."""
 
-    spec = COMMANDS[command]
     parser = build_stub_parser(command)
     args = parser.parse_args(argv)
     config_path = getattr(args, "config", None)
@@ -139,9 +150,4 @@ def run_milestone_stub(command: str, argv: list[str] | None = None) -> int:
             load_config(config_path)
         except Exception as error:
             parser.error(f"invalid config: {error}")
-    print(
-        f"{command} is intentionally unavailable until {spec.milestone}; "
-        "no compute or external write was started.",
-        file=sys.stderr,
-    )
-    return 2
+    return refuse_until_milestone(command)
