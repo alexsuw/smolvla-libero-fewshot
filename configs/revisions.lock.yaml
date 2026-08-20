@@ -1,0 +1,27 @@
+kind: revisions
+schema_version: 1
+status: provisional_m0
+snapshot_date: "2026-08-20"
+python: "3.12.x"
+dataset:
+  repo_id: nvidia/LIBERO_LeRobot_v3
+  revision: e5907374380b8f96511957e6ba5582be52a1e179
+  suite_seen: libero_90
+  suite_target: libero_goal
+model:
+  repo_id: lerobot/smolvla_base
+  revision: c83c3163b8ca9b7e67c509fffd9121e66cb96205
+source:
+  lerobot_git: d451fe4f1f1b00a812f95aa9534389b5e42ab155
+  libero_runtime_package: hf-libero==0.1.4
+  libero_upstream_reference: 8f1084e3132a39270c3a13ebe37270a43ece2a01
+runtime:
+  torch: 2.11.0+cu128
+  torchvision: 0.26.0+cu128
+  cuda_wheel_variant: cu128
+  mujoco: 3.8.1
+  transformers: 5.5.4
+  peft: 0.20.0
+  accelerate: 1.14.0
+  numpy: 2.2.6
+  ffmpeg: 7.1.1

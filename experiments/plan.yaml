@@ -1,0 +1,9 @@
+schema_version: 1
+status_values:
+  - planned
+  - running
+  - trained
+  - evaluated
+  - backed_up
+  - reported
+runs: []

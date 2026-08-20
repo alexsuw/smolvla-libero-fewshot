@@ -1,0 +1,21 @@
+kind: data
+schema_version: 1
+dataset:
+  repo_id: nvidia/LIBERO_LeRobot_v3
+  revision: e5907374380b8f96511957e6ba5582be52a1e179
+  suite_seen: libero_90
+  suite_target: libero_goal
+exact_text_matching: true
+targets:
+  drawer_middle:
+    task_text: open the middle drawer of the cabinet
+    task_index: 9
+    available_count: 43
+  bowl_stove:
+    task_text: put the bowl on the stove
+    task_index: 7
+    available_count: 48
+  wine_cabinet:
+    task_text: put the wine bottle on top of the cabinet
+    task_index: 4
+    available_count: 47

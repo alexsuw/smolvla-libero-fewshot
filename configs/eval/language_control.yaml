@@ -1,0 +1,28 @@
+kind: eval
+schema_version: 1
+stage: language_control
+dataset:
+  repo_id: nvidia/LIBERO_LeRobot_v3
+  revision: e5907374380b8f96511957e6ba5582be52a1e179
+  suite_seen: libero_90
+  suite_target: libero_goal
+protocol:
+  protocol_id: final_language_control_v1
+  hard_reset: true
+  rollouts_per_cell: 20
+  seeds_file: configs/eval/final_seeds.json
+  max_horizon: 300
+  action_chunk_horizon: 10
+  deterministic: true
+  save_every_failure_video: true
+  save_first_success_video: true
+  save_every_trace: true
+tracking:
+  wandb_enabled: false
+  tensorboard_enabled: true
+  csv_enabled: true
+  jsonl_events_enabled: true
+wrong_instruction_map:
+  drawer_middle: put the bowl on the stove
+  bowl_stove: put the wine bottle on top of the cabinet
+  wine_cabinet: open the middle drawer of the cabinet

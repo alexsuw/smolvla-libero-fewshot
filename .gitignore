@@ -1,0 +1,37 @@
+# Local secrets and Python environments
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Cursor/Netlify/local tooling state
+.netlify/
+
+# Runtime artifacts must live outside the Git worktree
+artifacts/
+outputs/
+runs/
+checkpoints/
+videos/
+datasets/
+cache/
+
+# Model, dataset, and video payloads
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.mp4
+*.avi
+*.mov
+*.parquet
+
+# OS/editor noise
+.DS_Store
+*.swp
+*.tmp

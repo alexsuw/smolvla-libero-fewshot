@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "dataset_repo_id": "nvidia/LIBERO_LeRobot_v3",
+  "dataset_revision": "e5907374380b8f96511957e6ba5582be52a1e179",
+  "suite": "libero_goal",
+  "selection_rule": "first N episode_index values in ascending dataset order for exact task text",
+  "tasks": {
+    "drawer_middle": {
+      "task_text": "open the middle drawer of the cabinet",
+      "task_index": 9,
+      "available_count": 43,
+      "episode_ids_first_25": [20, 26, 31, 42, 58, 64, 84, 90, 94, 111, 117, 118, 137, 140, 146, 162, 168, 173, 182, 187, 198, 206, 220, 232, 252]
+    },
+    "bowl_stove": {
+      "task_text": "put the bowl on the stove",
+      "task_index": 7,
+      "available_count": 48,
+      "episode_ids_first_25": [13, 15, 16, 22, 36, 45, 66, 76, 116, 121, 145, 151, 165, 166, 171, 178, 179, 186, 201, 219, 225, 233, 237, 239, 250]
+    },
+    "wine_cabinet": {
+      "task_text": "put the wine bottle on top of the cabinet",
+      "task_index": 4,
+      "available_count": 47,
+      "episode_ids_first_25": [6, 10, 17, 18, 25, 38, 40, 44, 48, 51, 53, 57, 75, 89, 91, 96, 97, 100, 101, 103, 133, 136, 149, 154, 164]
+    }
+  }
+}

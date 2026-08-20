@@ -1,0 +1,52 @@
+kind: train
+schema_version: 1
+stage: smoke
+method: smoke
+model:
+  repo_id: lerobot/smolvla_base
+  revision: c83c3163b8ca9b7e67c509fffd9121e66cb96205
+dataset:
+  repo_id: nvidia/LIBERO_LeRobot_v3
+  revision: e5907374380b8f96511957e6ba5582be52a1e179
+  suite: libero_90
+  episodes: selected
+  max_tasks: 2
+  max_episodes: 10
+trainable_scope:
+  freeze_vision_encoder: true
+  freeze_vlm_backbone: true
+  train_action_expert: true
+  train_state_projection: true
+  train_action_projections: true
+  strict_allowlist: true
+optimizer:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-2
+  betas: [0.9, 0.95]
+  eps: 1.0e-8
+scheduler:
+  name: cosine
+  warmup_steps: 10
+  min_lr: 1.0e-5
+training:
+  max_steps: 200
+  physical_batch_size: 1
+  effective_batch_size: 2
+  gradient_accumulation: 2
+  max_grad_norm: 1.0
+  mixed_precision: auto
+  seed: 42
+  num_workers: 0
+  sample_with_replacement: false
+checkpoint:
+  every_steps: 100
+  save_steps: [100, 200]
+  milestones: []
+  atomic: true
+  verify_fresh_load: true
+tracking:
+  wandb_enabled: false
+  tensorboard_enabled: true
+  csv_enabled: true
+  jsonl_events_enabled: true

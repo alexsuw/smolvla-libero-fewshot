@@ -1,0 +1,61 @@
+kind: train
+schema_version: 1
+stage: target
+method: replay_lora
+model:
+  repo_id: lerobot/smolvla_base
+  revision: c83c3163b8ca9b7e67c509fffd9121e66cb96205
+dataset:
+  repo_id: nvidia/LIBERO_LeRobot_v3
+  revision: e5907374380b8f96511957e6ba5582be52a1e179
+  suite: libero_goal
+  episodes: selected
+trainable_scope:
+  freeze_vision_encoder: true
+  freeze_vlm_backbone: true
+  train_action_expert: false
+  train_state_projection: true
+  train_action_projections: true
+  strict_allowlist: true
+optimizer:
+  name: adamw
+  lr: 1.0e-3
+  weight_decay: 1.0e-2
+  betas: [0.9, 0.95]
+  eps: 1.0e-8
+scheduler:
+  name: cosine
+  warmup_steps: 1000
+  min_lr: 1.0e-4
+training:
+  max_steps: 12000
+  epochs: 100
+  physical_batch_size: auto_fit
+  effective_batch_size: 32
+  gradient_accumulation: auto
+  max_grad_norm: 1.0
+  mixed_precision: auto
+  seed: 42
+  num_workers: 4
+  sample_with_replacement: true
+checkpoint:
+  every_steps: 1000
+  save_steps: [3000, 6000, 9000, 12000]
+  milestones: []
+  atomic: true
+  verify_fresh_load: true
+tracking:
+  wandb_enabled: false
+  tensorboard_enabled: true
+  csv_enabled: true
+  jsonl_events_enabled: true
+peft:
+  method_type: LORA
+  r: 64
+  lora_alpha: 64
+  lora_dropout: 0.0
+replay:
+  enabled: true
+  target_fraction: 0.75
+  seen_fraction: 0.25
+  seen_suite: libero_90

@@ -1,0 +1,11 @@
+kind: storage
+schema_version: 1
+data_root_env: VLA_DATA_ROOT
+datasets_dir_env: VLA_DATASETS_DIR
+runs_dir_env: VLA_RUNS_DIR
+checkpoints_dir_env: VLA_CHECKPOINTS_DIR
+cache_dir_env: VLA_CACHE_DIR
+scratch_dir_env: VLA_SCRATCH_DIR
+object_uri_env: VLA_OBJECT_URI
+overwrite: false
+sync_dry_run_by_default: true

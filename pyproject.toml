@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vla-fewshot"
+version = "0.1.0"
+description = "Reproducible few-shot adaptation of SmolVLA on LIBERO"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "Apache-2.0" }
+authors = [{ name = "smolvla-libero-fewshot contributors" }]
+dependencies = [
+  "pydantic>=2.10,<3",
+  "pyyaml>=6.0.2,<7",
+]
+
+[dependency-groups]
+dev = [
+  "pre-commit>=4,<5",
+  "pytest>=8.3,<9",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vla_fewshot"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+testpaths = ["tests"]
+markers = [
+  "integration: requires downloaded data or external services",
+  "gpu: requires a CUDA GPU",
+]
+
+[tool.uv]
+package = true

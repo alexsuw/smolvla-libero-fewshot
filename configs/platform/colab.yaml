@@ -1,0 +1,23 @@
+kind: platform
+schema_version: 1
+name: colab
+runtime:
+  os: linux
+  python: "3.12"
+  mujoco_gl: egl
+  tokenizers_parallelism: false
+hardware:
+  device: auto
+  mixed_precision: auto
+  allow_tf32: true
+  physical_batch_size: auto_fit
+storage:
+  durable: false
+  reserve_gb: 10
+  require_verified_backup: true
+preemption:
+  enabled: true
+  signals: [SIGTERM, SIGINT]
+  emergency_checkpoint: true
+  flush_logs: true
+  bounded_sync_seconds: 120

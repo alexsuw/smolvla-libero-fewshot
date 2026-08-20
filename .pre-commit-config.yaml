@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: vla-git-safety
+        name: reject secrets and runtime artifacts
+        entry: uv run python scripts/check_git_safety.py
+        language: system
+        pass_filenames: true
+        stages: [pre-commit]

@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "status": "unselected_until_todo_22",
+  "dataset_repo_id": "nvidia/LIBERO_LeRobot_v3",
+  "dataset_revision": "e5907374380b8f96511957e6ba5582be52a1e179",
+  "suite": "libero_90",
+  "selection_rule": null,
+  "tasks": {}
+}
