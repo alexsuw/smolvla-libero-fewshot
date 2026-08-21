@@ -149,9 +149,34 @@ Seen LoRA (TODO 25) is skipped. After zero-shot and language control, run the
 
 ```bash
 uv run python scripts/train_target.py --print-grid
+
+uv run python scripts/eval_target.py --print-grid
+
+uv run python scripts/verify_baseline_eval.py --print-grid
 ```
 
-Example cell and eval of every complete checkpoint:
+Every complete checkpoint of a cell (≥20 rollouts, failure videos):
+
+```bash
+uv run python scripts/eval_target.py \
+  --config configs/eval/final.yaml \
+  --profile full \
+  --run-dir "$VLA_RUNS_DIR/target_baseline/drawer_middle_n05_s42" \
+  --task drawer_middle \
+  --n-demos 5 \
+  --seed 42 \
+  --output-dir "$VLA_RUNS_DIR/target_eval/drawer_middle_n05_s42" \
+  --output-root "$VLA_DATASETS_DIR"
+
+uv run python scripts/verify_baseline_eval.py \
+  --train-dir "$VLA_RUNS_DIR/target_baseline/drawer_middle_n05_s42" \
+  --eval-dir "$VLA_RUNS_DIR/target_eval/drawer_middle_n05_s42" \
+  --task drawer_middle \
+  --n-demos 5 \
+  --seed 42
+```
+
+Example train cell:
 
 ```bash
 uv run python scripts/train_target.py \
@@ -162,15 +187,4 @@ uv run python scripts/train_target.py \
   --profile full \
   --output-dir "$VLA_RUNS_DIR/target_baseline/drawer_middle_n05_s42" \
   --log-freq 50
-
-uv run python scripts/eval_target.py \
-  --config configs/eval/final.yaml \
-  --profile full \
-  --run-dir "$VLA_RUNS_DIR/target_baseline/drawer_middle_n05_s42" \
-  --task drawer_middle \
-  --n-demos 5 \
-  --seed 42 \
-  --output-dir "$VLA_RUNS_DIR/target_eval/drawer_middle_n05_s42" \
-  --output-root "$VLA_DATASETS_DIR"
 ```
-

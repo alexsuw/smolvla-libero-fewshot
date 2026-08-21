@@ -189,10 +189,11 @@ pinned upstream revisions.
   still waits on a Linux CUDA VM. TODO 24 **code** is probe eval + selection;
   live probe rollouts wait on that same VM. TODO 25 (seen LoRA) is skipped.
   TODO 26 **code** is `eval_zero_shot.py` (3 tasks × ≥20, empty train list,
-  frozen seen hash). TODO 27 **code** is `eval_language_control.py` (paired
+  frozen seen hash).   TODO 27 **code** is `eval_language_control.py` (paired
   correct/wrong, same seeds/states/hash). TODO 28 **code** is `train_target.py`
-  baseline (no LoRA/replay) from the frozen seen checkpoint; GPU runs wait on
-  that freeze.
+  baseline (no LoRA/replay). TODO 29 **code** is `eval_target.py --run-dir`
+  plus `verify_baseline_eval.py` (≥20 rollouts and failure videos per complete
+  checkpoint). GPU runs wait on the freeze.
 
 ## Seen-pretrain trainer (TODO 23 code)
 
@@ -218,6 +219,8 @@ pinned upstream revisions.
   with `sample_with_replacement: true`. The final step is always checkpointed
   even when it is not on `save_steps`.
 - `--print-grid` lists the 18 independent cells. `eval_target.py --run-dir`
-  evaluates every complete baseline checkpoint (TODO 29 code; GPU after freeze).
+  evaluates every complete baseline checkpoint. `verify_baseline_eval.py` is
+  the complete-cell checker: ≥20 `final_v1` rollouts, traces, failure videos,
+  nested episode IDs. Static rows cannot close the grid.
 - Epoch length is `ceil(n_samples / effective_batch_size)` optimizer steps,
   not physical micro-batches.

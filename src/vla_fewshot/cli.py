@@ -61,7 +61,7 @@ COMMANDS: dict[str, CommandSpec] = {
     ),
     "eval_target": CommandSpec(
         "Run resumable fixed-seed target rollouts.",
-        "M7",
+        "M8",
         ("config", "checkpoint", "task"),
     ),
     "eval_zero_shot": CommandSpec(
@@ -73,6 +73,11 @@ COMMANDS: dict[str, CommandSpec] = {
         "Run paired correct/wrong instruction rollouts on the frozen seen checkpoint.",
         "M7",
         ("config", "checkpoint", "task"),
+    ),
+    "verify_baseline_eval": CommandSpec(
+        "Fail closed unless every complete baseline checkpoint has ≥20 eval rollouts.",
+        "M8",
+        ("train_dir", "eval_dir"),
     ),
     "verify_checkpoint": CommandSpec(
         "Verify checkpoint completeness and checksums.", "M5", ("checkpoint",)

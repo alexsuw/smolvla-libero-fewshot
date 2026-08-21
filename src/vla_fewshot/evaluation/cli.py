@@ -204,6 +204,7 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
     default_config = {
         "zero_shot": Path("configs/eval/zero_shot.yaml"),
         "language_control": Path("configs/eval/language_control.yaml"),
+        "target": Path("configs/eval/final.yaml"),
     }.get(kind)
     add_eval_arguments(parser, default_config=default_config)
     train_default = (
@@ -221,11 +222,11 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
     if kind == "target":
         parser.add_argument("--n-demos", type=int, choices=(0, 5, 10, 25))
         parser.add_argument("--seed", type=int, choices=(42, 123))
-    if kind in {"zero_shot", "language_control"}:
+    if kind in {"zero_shot", "language_control", "target"}:
         parser.add_argument(
             "--print-grid",
             action="store_true",
-            help="Print the 3 independent task commands and exit.",
+            help="Print independent eval commands and exit.",
         )
     args = parser.parse_args(argv)
     os.environ.setdefault("WANDB_MODE", "disabled")
@@ -242,6 +243,12 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
             from vla_fewshot.evaluation.language_control import language_control_commands
 
             for command in language_control_commands(config=args.config):
+                print(" ".join(command))
+            return 0
+        if kind == "target":
+            from vla_fewshot.evaluation.baseline_eval import baseline_eval_commands
+
+            for command in baseline_eval_commands(config=args.config):
                 print(" ".join(command))
             return 0
 

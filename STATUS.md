@@ -486,10 +486,33 @@ uv run python scripts/eval_language_control.py --help
 uv run python scripts/eval_language_control.py --print-grid
 ```
 
+## Baseline eval checker (TODO 29 code)
+
+Status: software complete on CPU. Live ≥20 rollouts per checkpoint wait on the
+VM after freeze and the 18 training runs.
+
+Completed:
+
+- `eval_target.py --print-grid` lists 18 `--run-dir` eval commands;
+- `verify_baseline_eval.py` requires every complete checkpoint to have ≥20
+  `final_v1` rollouts, traces, and a video for every failure;
+- nested episode IDs and train seed/task must match; static rows cannot close
+  the cell.
+
+Acceptance commands:
+
+```bash
+uv sync --frozen --extra data
+uv run pytest -q tests/unit/test_baseline_eval.py
+uv run python scripts/eval_target.py --print-grid
+uv run python scripts/verify_baseline_eval.py --help
+```
+
 ## Next milestone
 
 On a Linux CUDA VM: 200-step smoke, 100k `seen_expert`, then `eval_seen --run-dir`
 and `select_seen_checkpoint.py --write`. Do not tune on target success. Then
 `eval_zero_shot.py` (3×20) and `eval_language_control.py` (paired correct/wrong),
-then the 18-cell `train_target` baseline. Seen LoRA is skipped. Target LoRA
-waits until that baseline is trained and evaluated.
+then the 18-cell `train_target` baseline and `eval_target --run-dir` with
+`verify_baseline_eval.py`. Seen LoRA is skipped. Target LoRA (TODO 30) waits
+until that baseline is trained and evaluated.
