@@ -68,4 +68,30 @@ disk/Drive и передать `doctor.json` обратно в проект. З�
 3. повторить full doctor на том же host;
 4. обновить `STATUS.md` отдельным commit.
 
-До этого момента training не запускается.
+## Seen-pretrain on the VM (TODO 23)
+
+Код trainer готов. Не запускать 100k с этой машины. На Linux CUDA VM, после
+`bootstrap_vm.sh`, `uv sync --frozen --extra gpu`, dataset videos и doctor:
+
+```bash
+export VLA_DATASETS_DIR="${VLA_DATA_ROOT}/datasets"
+export VLA_RUNS_DIR="${VLA_DATA_ROOT}/runs"
+
+# 200-step SmolVLA smoke (config already has max_steps=200)
+uv run python scripts/train_seen.py \
+  --config configs/train/smoke.yaml \
+  --profile full \
+  --output-dir "$VLA_RUNS_DIR/seen_smoke_200"
+
+# Primary 100k seen-pretrain. auto_fit runs before the run directory exists.
+uv run python scripts/train_seen.py \
+  --config configs/train/seen_expert.yaml \
+  --profile full \
+  --output-dir "$VLA_RUNS_DIR/seen_expert_100k" \
+  --log-freq 50
+```
+
+`--profile static` остаётся CPU toy smoke. `lerobot-train` не вызывается.
+`--stop-after` можно использовать только как resume-allowlist override на уже
+замороженном `max_steps`; для 200-step GPU smoke берите `configs/train/smoke.yaml`.
+

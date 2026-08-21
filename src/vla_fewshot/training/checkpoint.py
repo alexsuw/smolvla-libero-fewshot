@@ -20,13 +20,15 @@ from vla_fewshot.storage.checksums import (
     verify_file_checksums,
 )
 from vla_fewshot.storage.layout import (
-    CHECKPOINT_CHECKSUMS_NAME,
     CHECKPOINT_COMPLETED_NAME,
+    CHECKPOINT_CHECKSUMS_NAME,
     CHECKPOINT_FORMAT_VERSION,
     CHECKPOINT_OPTIMIZER_NAME,
+    CHECKPOINT_OPTIMIZER_PT_NAME,
     CHECKPOINT_RNG_NAME,
     CHECKPOINT_TRAIN_STATE_NAME,
     CHECKPOINT_WEIGHTS_NAME,
+    CHECKPOINT_WEIGHTS_PT_NAME,
     CHECKPOINTS_INDEX_NAME,
     LATEST_POINTER_NAME,
     RESOLVED_CONFIG_NAME,
@@ -109,18 +111,30 @@ def load_json(path: Path) -> dict[str, Any]:
 
 
 def is_complete_checkpoint(directory: Path) -> bool:
-    required = (
+    if not directory.is_dir():
+        return False
+    common = (
         CHECKPOINT_COMPLETED_NAME,
         CHECKPOINT_CHECKSUMS_NAME,
-        CHECKPOINT_WEIGHTS_NAME,
-        CHECKPOINT_OPTIMIZER_NAME,
         CHECKPOINT_RNG_NAME,
         CHECKPOINT_TRAIN_STATE_NAME,
     )
-    return directory.is_dir() and all((directory / name).is_file() for name in required)
+    if not all((directory / name).is_file() for name in common):
+        return False
+    if (directory / CHECKPOINT_WEIGHTS_PT_NAME).is_file():
+        return (directory / CHECKPOINT_OPTIMIZER_PT_NAME).is_file()
+    toy = (
+        CHECKPOINT_WEIGHTS_NAME,
+        CHECKPOINT_OPTIMIZER_NAME,
+    )
+    return all((directory / name).is_file() for name in toy)
 
 
 def verify_checkpoint_dir(directory: Path) -> dict[str, Any]:
+    if (directory / CHECKPOINT_WEIGHTS_PT_NAME).is_file():
+        from vla_fewshot.training.torch_checkpoint import verify_torch_checkpoint_dir
+
+        return verify_torch_checkpoint_dir(directory)
     if not (directory / CHECKPOINT_COMPLETED_NAME).is_file():
         raise CheckpointError(f"incomplete checkpoint (missing COMPLETED.json): {directory}")
     checksums = load_json(directory / CHECKPOINT_CHECKSUMS_NAME)

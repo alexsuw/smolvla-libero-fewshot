@@ -7,9 +7,9 @@
 ## Текущий статус
 
 M0–M5 реализация завершена на CPU; hardware acceptance M1/M3/M4/M5 остаётся
-pending. Eval protocol, object-storage sync, `predictions.md` и pseudo-target
-freeze готовы. Обучение SmolVLA и платные GPU-запуски до прохождения
-hardware-gates запрещены.
+pending. Eval protocol, object-storage sync, `predictions.md`, pseudo-target
+freeze и project-owned SmolVLA trainer (`train_seen.py --profile full`) готовы.
+100k seen-pretrain и live eval ждут Linux CUDA VM. `lerobot-train` не вызывается.
 Актуальный прогресс и evidence перечислены в [`STATUS.md`](STATUS.md).
 
 ## Быстрый старт для разработки
@@ -30,9 +30,21 @@ uv run python scripts/train_seen.py --config configs/train/smoke.yaml \
   --profile static --protocol resume-compare --output-dir /tmp/vla-m5
 ```
 
-`--profile full` завершается до GPU allocation, пока hardware-gates M1–M4
-не пройдены. Это защищает от случайного запуска training на неподготовленной
-машине.
+`--profile full` на Linux + CUDA запускает project-owned SmolVLA trainer
+(без `lerobot-train` / W&B). На macOS и без CUDA команда сразу завершается
+с `no GPU training was started`.
+
+```bash
+# VM, после videos + gpu extra. Сначала короткий smoke:
+uv run python scripts/train_seen.py \
+  --config configs/train/smoke.yaml --profile full \
+  --output-dir "$VLA_RUNS_DIR/seen_smoke"
+
+# Затем 100k libero_90 (TODO 23):
+uv run python scripts/train_seen.py \
+  --config configs/train/seen_expert.yaml --profile full \
+  --output-dir "$VLA_RUNS_DIR/seen_expert"
+```
 
 ## Dataset metadata (M2)
 

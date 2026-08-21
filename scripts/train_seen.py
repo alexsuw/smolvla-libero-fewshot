@@ -9,11 +9,13 @@ from pathlib import Path
 
 from vla_fewshot.config import TrainConfig, load_config
 from vla_fewshot.data.gates import maybe_assert_no_leakage
+from vla_fewshot.data.layout import resolve_datasets_dir
 from vla_fewshot.data.leakage import LeakageError
 from vla_fewshot.logging.manifest import build_run_id
 from vla_fewshot.storage.sync import execute_local_mirror
 from vla_fewshot.training.compare import run_resume_compare_protocol
-from vla_fewshot.training.full import refuse_full_smolvla_training
+from vla_fewshot.training.full import require_full_training_runtime
+from vla_fewshot.training.full_loop import prepare_full_training, run_full_training
 from vla_fewshot.training.resume import assert_override_allowlist
 from vla_fewshot.training.trainer import run_static_training
 
@@ -60,29 +62,44 @@ def _load_train_config(path: Path) -> TrainConfig:
     return loaded
 
 
+def _full_run_dir(args: argparse.Namespace, config: TrainConfig, project_root: Path) -> Path:
+    if args.output_dir is not None:
+        return args.output_dir
+    from vla_fewshot.paths import resolve_paths
+
+    try:
+        paths = resolve_paths()
+    except RuntimeError as error:
+        raise SystemExit(
+            f"{error}; set --output-dir or VLA_DATA_ROOT / VLA_RUNS_DIR. "
+            "no GPU training was started."
+        ) from error
+    return paths.runs_dir / build_run_id(config, project_root=project_root)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     os.environ.setdefault("WANDB_MODE", "disabled")
     os.environ.setdefault("WANDB_DISABLED", "true")
+
+    if args.profile == "full":
+        try:
+            require_full_training_runtime()
+        except RuntimeError as error:
+            print(str(error), file=sys.stderr)
+            return 1
+
     try:
         maybe_assert_no_leakage(
             config_path=args.data_config,
             splits_path=args.split,
             output_root=args.output_root,
             stage="seen",
-            required=False,
+            required=args.profile == "full",
         )
     except LeakageError as error:
         print(str(error))
-        return 1
-
-    if args.profile == "full":
-        try:
-            refuse_full_smolvla_training()
-        except RuntimeError as error:
-            print(str(error), file=sys.stderr)
-            return 1
         return 1
 
     try:
@@ -101,6 +118,41 @@ def main(argv: list[str] | None = None) -> int:
     )
     project_root = Path.cwd()
     command = ["python", "scripts/train_seen.py", *sys.argv[1:]]
+
+    if args.profile == "full":
+        if args.protocol == "resume-compare":
+            parser.error("resume-compare is the CPU static protocol; use --profile static")
+        try:
+            datasets_dir = resolve_datasets_dir(args.output_root)
+            prepared = prepare_full_training(config, datasets_dir=datasets_dir)
+            config = prepared["config"]
+            run_dir = _full_run_dir(args, config, project_root)
+            result = run_full_training(
+                config=config,
+                run_dir=run_dir,
+                command=command,
+                config_path=args.config,
+                project_root=project_root,
+                datasets_dir=datasets_dir,
+                resume_from=args.resume_from,
+                stop_after=args.stop_after,
+                log_freq=args.log_freq,
+                install_signal_handlers=True,
+                run_id=run_dir.name,
+                prepared=prepared,
+            )
+        except (RuntimeError, FileNotFoundError, FileExistsError) as error:
+            print(str(error), file=sys.stderr)
+            return 1
+        mirror = args.backup_dir or args.destination
+        if mirror is not None and result.status in {"completed", "stopped"}:
+            execute_local_mirror(run_dir, mirror, execute=True)
+        print(
+            f"train status={result.status} step={result.global_step} "
+            f"checkpoint={result.final_checkpoint}"
+        )
+        return 0 if result.status in {"completed", "stopped"} else 1
+
     if args.protocol == "resume-compare":
         if args.output_dir is None:
             parser.error("--output-dir is required for --protocol resume-compare")

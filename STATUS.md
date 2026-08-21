@@ -366,14 +366,36 @@ artifacts/validation/object-sync/
 artifacts/validation/reporting/
 ```
 
-Deferred hardware / paid runs (TODO 23–31, 36 live S3):
+Deferred hardware / paid runs (TODO 23 GPU, 24–31, 36 live S3):
 
 - 100k `libero_90` seen-pretrain and seen probes;
 - zero-shot, language control, baseline grid, LoRA on real targets;
 - verified remote backup of the final bundle to a real bucket.
 
+## Seen-pretrain trainer (TODO 23 code)
+
+Status: software complete on CPU; the 100k CUDA run is deferred to the VM.
+
+Completed:
+
+- project-owned SmolVLA loop (`train_seen.py --profile full`) that never calls
+  `lerobot-train` / WandBLogger;
+- allowlist before AdamW; auto-fit `{4,2,1}` before the run directory exists;
+- torch checkpoints (`weights.pt`) with checksums and `COMPLETED.json`;
+- deterministic frame cursor for resume; suite stats for MEAN_STD;
+- Darwin / no-CUDA still fail closed with `no GPU training was started`.
+
+Acceptance commands:
+
+```bash
+uv sync --frozen --extra data
+uv run pytest -q tests/unit/test_full_train_cpu.py tests/smoke/test_cli_help.py
+uv run python scripts/train_seen.py --help
+```
+
 ## Next milestone
 
-Paid `libero_90` seen-pretrain (Explicit TODO 23) after a Linux CUDA VM is
-provisioned and the deferred M1/M3/M4/M5 hardware gates pass. Software TODOs
-20–22 and the CPU reporting pipeline are done. Do not tune on target success.
+Run 200-step `configs/train/smoke.yaml --profile full`, then 100k
+`configs/train/seen_expert.yaml` on a Linux CUDA VM after dataset videos and
+doctor. Do not tune on target success. Seen probes and checkpoint freeze are
+TODO 24.

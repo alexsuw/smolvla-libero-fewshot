@@ -122,8 +122,12 @@ pinned upstream revisions.
   registry rebuild, local dry-run-first backup, and exact 0→200 vs
   0→100→200 resume on a toy policy with SmolVLA-like parameter names.
   Weights are stored as IEEE-754 hex so JSON round-trips are bit-exact.
-- `--profile full` fails closed before GPU allocation until M1/M3/M4 hardware
-  gates pass. It never starts SmolVLA training.
+- `--profile full` on Linux + CUDA runs the project trainer (no `lerobot-train`).
+  macOS and hosts without CUDA still fail closed with `no GPU training was started`.
+  Auto-fit of physical batch `{4,2,1}` happens before the run directory exists.
+  Weights are `weights.pt`; the static path still uses JSON toy weights.
+  Frame decode stays in-process so the index cursor can resume exactly;
+  `training.num_workers` is recorded but not used for DataLoader workers.
 - Resume may override only `log_freq`, `destination`, `stop_after`,
   `backup_dir`, and `output_dir`. Dataset revision, split, trainable scope,
   optimizer, scheduler, batch, and seed are frozen.
@@ -166,5 +170,20 @@ pinned upstream revisions.
   figures are SVG with x ticks `{0,5,10,25}` so the CPU extra does not need
   matplotlib. Spec PDF names remain a future optional export.
 - `make_report_tables.py --bundle` checksums markdown/tables/figures only.
-- TODOs 23–31 (paid seen-pretrain, live eval, LoRA grid) wait on M0–M5
-  hardware gates. They are not started from this CPU tree.
+- TODO 23 **code** is the project SmolVLA trainer. The 100k GPU run itself
+  still waits on a Linux CUDA VM. Live eval (`--profile full`) stays refused
+  until TODO 24.
+
+## Seen-pretrain trainer (TODO 23 code)
+
+- Pinned `SmolVLAPolicy.forward(batch)` returns `(loss, loss_dict)` at
+  `d451fe4…`. Action chunks use `delta_timestamps["action"] = range(chunk_size)/fps`
+  with hub `chunk_size=50` and dataset fps 20.
+- `LeRobotDataset(root=suite_dir, download_videos=False, revision=SHA, episodes=...)`
+  is the pinned constructor. The local suite directory is
+  `<datasets>/nvidia_LIBERO_LeRobot_v3/<SHA>/libero_90/`.
+- Identity MEAN_STD stats remain smoke-only. Full training requires suite
+  `stats.json` / `dataset.meta.stats`.
+- After auto-fit, CUDA OOM is fatal (`physical_batch_size` is frozen).
+- `make_pre_post_processors(..., preprocessor_overrides=device)` is attempted;
+  a `TypeError` falls back to the signature already used by `smoke_inference.py`.
