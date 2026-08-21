@@ -73,6 +73,7 @@ def download_dataset(
     suites: tuple[str, ...] = ("libero_90", "libero_goal"),
     metadata_only: bool = True,
     include_videos: bool = False,
+    include_actions: bool = False,
 ) -> dict[str, Any]:
     """Download pinned files into a revision-encoded directory."""
 
@@ -92,6 +93,8 @@ def download_dataset(
 
     allow_patterns = metadata_allow_patterns(*suites)
     ignore_patterns = list(VIDEO_IGNORE_PATTERNS)
+    if include_actions:
+        allow_patterns.extend(f"{suite}/data/**" for suite in suites)
     if include_videos:
         allow_patterns = [f"{suites[0]}/**"]
         ignore_patterns = ["**/*.swp", "**/Untitled"]
@@ -124,6 +127,16 @@ def download_dataset(
     missing = [name for name in required_suffixes if not (root / name).exists()]
     if missing:
         raise FileNotFoundError(f"download incomplete, missing {missing}")
+    if include_actions:
+        missing_data = [
+            suite
+            for suite in suites
+            if not any((root / suite / "data").rglob("*.parquet"))
+        ]
+        if missing_data:
+            raise FileNotFoundError(
+                f"action download incomplete, missing data parquet for {missing_data}"
+            )
 
     manifest = {
         "schema_version": 1,
@@ -133,6 +146,7 @@ def download_dataset(
         "suites": list(suites),
         "metadata_only": metadata_only,
         "include_videos": include_videos,
+        "include_actions": include_actions,
         "local_root": str(root),
         "file_count": len(files),
         "total_bytes": sum(item["bytes"] for item in files),

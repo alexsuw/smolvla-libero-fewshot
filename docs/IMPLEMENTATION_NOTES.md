@@ -66,3 +66,26 @@ pinned upstream revisions.
 - Pinned `tasks.parquet` stores task strings in `__index_level_0__` (pandas
   index leftover) plus integer `task_index`. Inspection accepts `task`,
   `task_text`, or `__index_level_0__`.
+
+## M3 implementation
+
+- Canonical policy wrist key is `observation.images.wrist_image`. Pinned
+  LeRobot env/processor still emits `observation.images.image2`. The project
+  adapter remaps that key once and refuses a dual alias.
+- Image geometry: `LiberoProcessorStep` already flips H and W (rot180). The
+  project adapter transform is frozen as `identity`. Enabling any second
+  rotation/flip is a fatal configuration error.
+- Gripper conversion `g_env = 1 - 2 g_dataset` happens only immediately before
+  `env.step`. Dataset/training stay in `[0, 1]`. Binary runtime default:
+  `< 0.5 -> +1`, `>= 0.5 -> -1`.
+- `create_libero_envs(..., n_envs=1)` always uses `episode_index=0`. The replay
+  gate therefore uses the first demonstration of each task (`task_local_index=0`)
+  so the public factory's init state matches the selected episode.
+- Dataset `task_index` is not assumed equal to LIBERO env `task_id` on
+  `libero_90` (73 unique texts vs 90 benchmark tasks). Target env IDs are pinned
+  from the spec; seen env IDs are resolved by exact language match at runtime.
+- Expert replay of the six gate trajectories still requires Linux `gpu` extra,
+  EGL, action parquet (`--include-actions`), and simulator success. Static CI
+  cannot close that hardware gate. M1 remains `resolved_m1_pending_hardware`.
+- `--save-video` writes PPM frames through the production replay path. AV1 MP4
+  encoding stays on the exact FFmpeg 7.1.1 system pin from M1.

@@ -42,3 +42,13 @@ def test_hard_coded_path_outside_platform_overlay_is_rejected(tmp_path: Path) ->
 def test_platform_overlay_may_define_host_specific_defaults() -> None:
     config = load_config(ROOT / "configs" / "platform" / "colab.yaml")
     assert config.storage.data_root_default.startswith("/content/drive/")
+
+
+def test_env_config_freezes_relative_control_and_identity_transform() -> None:
+    config = load_config(ROOT / "configs" / "env.yaml")
+    assert config.kind == "env"
+    assert config.control_mode == "relative"
+    assert config.action_dim == 7
+    assert config.orientation.project_transform == "identity"
+    assert config.cameras["wrist"].env_raw_key == "image2"
+    assert config.cameras["wrist"].policy_key == "observation.images.wrist_image"

@@ -242,6 +242,51 @@ class ReplayConfig(StrictModel):
         return self
 
 
+class TrainEnvConfig(StrictModel):
+    control_mode: Literal["relative"]
+    hard_reset: Literal[True]
+
+
+class TrainActionConfig(StrictModel):
+    dim: Literal[7]
+
+
+class CameraMapConfig(StrictModel):
+    source: str
+    env_raw_key: str
+    dataset_key: str
+    policy_key: str
+
+
+class OrientationConfig(StrictModel):
+    lerobot_libero_processor_rot180: Literal[True]
+    project_transform: Literal["identity"]
+
+
+class GripperRuntimeConfig(StrictModel):
+    binary_threshold: float = Field(gt=0, lt=1)
+    convert_before_env_step: Literal[True]
+
+
+class EnvConfig(StrictModel):
+    kind: Literal["env"]
+    schema_version: Literal[1]
+    control_mode: Literal["relative"]
+    action_dim: Literal[7]
+    hard_reset: Literal[True]
+    observation_width: Literal[256]
+    observation_height: Literal[256]
+    cameras: dict[str, CameraMapConfig]
+    orientation: OrientationConfig
+    gripper: GripperRuntimeConfig
+
+    @model_validator(mode="after")
+    def require_main_and_wrist(self) -> "EnvConfig":
+        if set(self.cameras) != {"main", "wrist"}:
+            raise ValueError("cameras must be exactly main and wrist")
+        return self
+
+
 class TrainConfig(StrictModel):
     kind: Literal["train"]
     schema_version: Literal[1]
@@ -257,6 +302,8 @@ class TrainConfig(StrictModel):
     tracking: TrackingConfig
     peft: PeftConfig | None = None
     replay: ReplayConfig | None = None
+    env: TrainEnvConfig
+    action: TrainActionConfig
 
 
 class EvaluationProtocol(StrictModel):
@@ -287,6 +334,7 @@ ConfigModel = (
     | StorageConfig
     | PlatformConfig
     | DataConfig
+    | EnvConfig
     | TrainConfig
     | EvalConfig
 )
@@ -296,6 +344,7 @@ MODEL_BY_KIND: dict[str, type[StrictModel]] = {
     "storage": StorageConfig,
     "platform": PlatformConfig,
     "data": DataConfig,
+    "env": EnvConfig,
     "train": TrainConfig,
     "eval": EvalConfig,
 }

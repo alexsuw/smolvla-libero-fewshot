@@ -138,8 +138,58 @@ artifacts/validation/M2/acceptance.log
 M1 revision status is unchanged: `resolved_m1_pending_hardware`. No training,
 simulator replay, model load or GPU allocation is part of M2.
 
+## M3 — Environment adapters and expert replay
+
+Status: implementation and CPU/unit acceptance complete; live simulator replay
+of the six gate trajectories is deferred until Linux EGL/`gpu` extra is
+available. M1 revision status stays `resolved_m1_pending_hardware`.
+
+Completed:
+
+- explicit camera map `image2` → `observation.images.wrist_image`;
+- frozen orientation contract: LeRobot rot180 only, project transform identity;
+- 8D state flatten matching pinned `LiberoProcessorStep`;
+- gripper/action postprocessor with dual-space traces;
+- LIBERO wrapper over pinned `create_libero_envs` (hard reset, relative, 256²);
+- observation parity CLI and six-episode replay gate;
+- train configs now record `env.control_mode: relative` and `action.dim: 7`.
+
+Acceptance commands:
+
+```bash
+uv sync --frozen --extra data
+make check-m3
+```
+
+Local result on 2026-08-21:
+
+- `uv sync --frozen --extra data` plus `make check-m3`: passed;
+- CLI help validation: 28 commands passed;
+- Git safety: passed;
+- pytest: 90 passed, 3 skipped without GPU/storage/live-HF env vars;
+- endpoint gripper tests: `0→+1`, `1→-1`, `0.5→0`;
+- double-flip and double gripper conversion rejected;
+- replay gate: 3 target first-demos + 3 diverse seen first-demos;
+- parity bundle writes candidate transforms without decoding videos.
+
+Local evidence:
+
+```text
+artifacts/validation/M3/parity/
+artifacts/validation/M3/acceptance.log
+```
+
+Deferred hardware gates:
+
+- `uv sync --frozen --extra gpu` on Linux;
+- `python scripts/check_observation_parity.py --with-env`;
+- download action parquet (`--include-actions`) then
+  `python scripts/replay_expert.py --all-gate --save-video`.
+
+These must succeed with simulator `success=1` and saved traces/videos before
+training. Static CI cannot close this gate.
+
 ## Next milestone
 
-M3 — LIBERO environment adapters, observation parity, state/action/gripper
-mapping and expert replay. This stage still does not require buying a GPU
-until you want hardware doctor or M5 smoke.
+M4 — SmolVLA inference and trainable scope. Still no paid GPU until M1/M3
+hardware gates and later smoke training are ready.

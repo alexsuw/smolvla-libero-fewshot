@@ -3,7 +3,7 @@ PYTHON := $(UV) run python
 
 .PHONY: help sync sync-data sync-gpu test validate-configs validate-revisions \
 	doctor-static doctor check-cli check-git-safety check check-m1-static \
-	verify-split verify-leakage check-m2
+	verify-split verify-leakage check-m2 check-m3
 
 help:
 	@echo "sync              Install the locked M0 development environment"
@@ -21,6 +21,7 @@ help:
 	@echo "verify-split      Verify tracked target prefixes against metadata"
 	@echo "verify-leakage    Fail if any target text appears in libero_90"
 	@echo "check-m2          Run M0/M1 static checks plus M2 unit contracts"
+	@echo "check-m3          Run M2 checks plus env/gripper/parity unit contracts"
 
 sync:
 	$(UV) sync --frozen
@@ -67,3 +68,8 @@ verify-leakage:
 check-m2:
 	$(PYTHON) -c "import huggingface_hub, pyarrow"
 	$(MAKE) check-m1-static
+
+check-m3:
+	$(MAKE) check-m2
+	$(PYTHON) scripts/check_observation_parity.py \
+		--output-dir artifacts/validation/M3/parity

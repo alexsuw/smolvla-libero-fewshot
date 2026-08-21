@@ -48,6 +48,11 @@ tracking:
   tensorboard_enabled: true
   csv_enabled: true
   jsonl_events_enabled: true
+env:
+  control_mode: relative
+  hard_reset: true
+action:
+  dim: 7
 peft:
   method_type: LORA
   r: 64

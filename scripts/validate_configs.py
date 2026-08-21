@@ -29,6 +29,12 @@ def main() -> int:
     load_target_splits(split_path)
     print(f"OK {split_path}: nested target prefixes")
 
+    from vla_fewshot.env.replay import load_replay_gate
+
+    gate_path = args.root / "splits" / "replay_gate.json"
+    load_replay_gate(gate_path)
+    print(f"OK {gate_path}: six expert-replay gate episodes")
+
     seeds_path = args.root / "eval" / "final_seeds.json"
     with seeds_path.open("r", encoding="utf-8") as handle:
         seeds = json.load(handle)

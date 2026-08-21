@@ -13,3 +13,15 @@ uv run pytest -q tests/integration/test_m2_metadata.py
 ```
 
 This download is metadata-only and CPU-only. It is not a GPU purchase gate.
+
+M3 live expert replay (Linux GPU VM, after `uv sync --frozen --extra gpu`):
+
+```bash
+export VLA_DATASETS_DIR="$HOME/.cache/vla-fewshot/datasets"
+export VLA_RUN_GPU_TESTS=1
+uv run python scripts/download_dataset.py --include-actions --output-root "$VLA_DATASETS_DIR"
+uv run python scripts/check_observation_parity.py --with-env \
+  --output-dir artifacts/validation/M3/parity-env
+uv run python scripts/replay_expert.py --all-gate --save-video \
+  --output-dir artifacts/validation/M3/replay
+```
