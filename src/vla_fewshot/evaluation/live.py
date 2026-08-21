@@ -97,7 +97,11 @@ def load_eval_policy(
         device="cuda",
     )
     policy = loaded["policy"]
-    peft = train.peft if train is not None and train.method == "lora" else None
+    peft = (
+        train.peft
+        if train is not None and train.method in {"lora", "replay_lora"}
+        else None
+    )
     if peft is not None:
         from vla_fewshot.model.peft import load_lora_policy_weights, wrap_policy_lora
 

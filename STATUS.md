@@ -518,8 +518,7 @@ Completed:
 - `train_target.py --config configs/train/target_lora.yaml` wraps PEFT LoRA
   after the frozen seen `weights.pt` load and before the allowlist/optimizer;
 - same nested episode IDs, seeds, and step cap as baseline; no replay;
-- adapter sidecar is merged-free; eval loads with `--train-config`;
-- Replay-LoRA configs still fail closed.
+- adapter sidecar is merged-free; eval loads with `--train-config`.
 
 Acceptance commands:
 
@@ -530,11 +529,33 @@ uv run python scripts/train_target.py --config configs/train/target_lora.yaml --
 uv run python scripts/eval_target.py --train-config configs/train/target_lora.yaml --print-grid
 ```
 
+## Replay-LoRA (TODO 31 code)
+
+Status: software complete on CPU. Live GPU cells wait on the VM after freeze,
+baseline, and the LoRA ablation.
+
+Completed:
+
+- `train_target.py --config configs/train/target_replay_lora.yaml` mixes 75%
+  nested target frames with 25% `libero_90` (never `libero_goal`);
+- same LoRA wrap, origin, episode IDs, and target-subset MEAN_STD as LoRA;
+- mixer is seeded and resumable; step events log per-window fractions;
+- seen frames do not change N or the epoch cap.
+
+Acceptance commands:
+
+```bash
+uv sync --frozen --extra data
+uv run pytest -q tests/unit/test_replay_mixer.py tests/unit/test_target_lora.py
+uv run python scripts/train_target.py --config configs/train/target_replay_lora.yaml --print-grid
+uv run python scripts/eval_target.py --train-config configs/train/target_replay_lora.yaml --print-grid
+```
+
 ## Next milestone
 
 On a Linux CUDA VM: 200-step smoke, 100k `seen_expert`, then `eval_seen --run-dir`
 and `select_seen_checkpoint.py --write`. Do not tune on target success. Then
 `eval_zero_shot.py` (3×20) and `eval_language_control.py` (paired correct/wrong),
-then the 18-cell `train_target` baseline and `eval_target --run-dir` with
-`verify_baseline_eval.py`. Seen LoRA is skipped. Target LoRA GPU cells use the
-same origin after that baseline exists. Replay-LoRA (TODO 31) is next in code.
+then the 18-cell `train_target` baseline, LoRA, and Replay-LoRA grids with
+`eval_target --run-dir` / `verify_baseline_eval.py`. Seen LoRA is skipped.
+Reporting (TODO 32–35) is already wired on CPU.

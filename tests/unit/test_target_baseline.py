@@ -138,8 +138,10 @@ def test_train_target_refuses_unfrozen_seen_and_replay_lora(tmp_path: Path) -> N
         env=env,
     )
     assert replay.returncode == 1
-    assert "no GPU training was started" in replay.stdout + replay.stderr
-    assert "Replay-LoRA" in replay.stdout + replay.stderr
+    combined_replay = replay.stdout + replay.stderr
+    assert "no GPU training was started" in combined_replay
+    assert "frozen" in combined_replay
+    assert "not wired" not in combined_replay
 
     baseline = subprocess.run(
         [

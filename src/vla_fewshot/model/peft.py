@@ -81,9 +81,10 @@ def wrap_policy_lora(policy: Any, config: TrainConfig) -> Any:
 
     if config.stage == "seen":
         refuse_peft_until_challenger()
-    if config.stage != "target" or config.method != "lora":
+    if config.stage != "target" or config.method not in {"lora", "replay_lora"}:
         raise TrainError(
-            "LoRA wrap is only for target method=lora. no GPU training was started."
+            "LoRA wrap is only for target method=lora or replay_lora. "
+            "no GPU training was started."
         )
     if config.peft is None:
         raise TrainError("target LoRA requires peft. no GPU training was started.")

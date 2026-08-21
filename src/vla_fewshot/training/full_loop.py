@@ -48,7 +48,12 @@ from vla_fewshot.training.data import (
 from vla_fewshot.training.full import refuse_lerobot_train_cli, require_full_training_runtime
 from vla_fewshot.training.optim import current_lr, resolve_gradient_accumulation
 from vla_fewshot.training.precision import autocast_cm, cuda_bf16_supported, resolve_precision
-from vla_fewshot.training.replay_mixer import assert_replay_disabled
+from vla_fewshot.training.replay_mixer import (
+    ReplayMixer,
+    assert_replay_disabled,
+    assert_replay_pool,
+    gather_mixed_samples,
+)
 from vla_fewshot.training.resume import assert_resume_compatible
 from vla_fewshot.training.baseline import cap_optimizer_steps
 from vla_fewshot.training.stats import (
@@ -134,10 +139,11 @@ def _load_lerobot_dataset(
     episode_ids: list[int] | None,
     chunk_size: int,
     fps: float,
+    suite: str | None = None,
 ) -> Any:
     from lerobot.datasets.lerobot_dataset import LeRobotDataset
 
-    suite_dir = suite_root(revision_root, config.dataset.suite)
+    suite_dir = suite_root(revision_root, suite or config.dataset.suite)
     assert_suite_videos(suite_dir)
     dataset = LeRobotDataset(
         repo_id=config.dataset.repo_id,
@@ -181,12 +187,10 @@ def prepare_full_training(
     refuse_lerobot_train_cli()
     _disable_wandb()
     assert_replay_disabled(config)
-    if config.peft is not None and (config.stage != "target" or config.method != "lora"):
-        raise TrainError(
-            "this training path does not wrap LoRA. no GPU training was started."
-            if config.method != "replay_lora"
-            else "Replay-LoRA is not wired on this path yet. no GPU training was started."
-        )
+    if config.peft is not None and (
+        config.stage != "target" or config.method not in {"lora", "replay_lora"}
+    ):
+        raise TrainError("this training path does not wrap LoRA. no GPU training was started.")
     if config.tracking.wandb_enabled:
         raise TrainError("tracking.wandb_enabled must stay false")
     if config.stage == "target":
@@ -237,6 +241,21 @@ def prepare_full_training(
         chunk_size=chunk_size,
         fps=fps,
     )
+    replay_dataset = None
+    if config.method == "replay_lora":
+        from vla_fewshot.data.expected import SEEN_SUITE
+        from vla_fewshot.data.metadata import load_suite_metadata
+
+        replay_meta = load_suite_metadata(revision_root, SEEN_SUITE)
+        assert_replay_pool(suite=replay_meta.suite, task_texts=list(replay_meta.unique_task_texts))
+        replay_dataset = _load_lerobot_dataset(
+            config=config,
+            revision_root=revision_root,
+            episode_ids=None,
+            chunk_size=chunk_size,
+            fps=float(replay_meta.fps or fps),
+            suite=SEEN_SUITE,
+        )
     stats = getattr(getattr(dataset, "meta", None), "stats", None) or meta.stats
     if not stats:
         raise TrainError("dataset stats.json is required for MEAN_STD training; identity smoke stats are forbidden")
@@ -285,6 +304,7 @@ def prepare_full_training(
         "n_samples": len(dataset),
         "origin_checkpoint": origin_checkpoint,
         "origin_sha256": origin_sha256,
+        "replay_dataset": replay_dataset,
     }
 
 
@@ -322,6 +342,21 @@ def run_full_training(
     device = bundle["device"]
     precision = bundle["precision"]
     n_samples = int(bundle["n_samples"])
+    replay_dataset = bundle.get("replay_dataset")
+    mixer: ReplayMixer | None = None
+    if config.method == "replay_lora":
+        if replay_dataset is None:
+            raise TrainError("Replay-LoRA is missing the libero_90 pool")
+        if config.replay is None:
+            raise TrainError("Replay-LoRA is missing replay config")
+        mixer = ReplayMixer(
+            n_target=n_samples,
+            n_replay=len(replay_dataset),
+            target_fraction=config.replay.target_fraction,
+            seen_fraction=config.replay.seen_fraction,
+            seed=config.training.seed,
+            with_replacement=config.training.sample_with_replacement,
+        )
     accumulation = resolve_gradient_accumulation(config.training)
     physical = int(config.training.physical_batch_size)
     resolved_cap = cap_optimizer_steps(
@@ -360,6 +395,10 @@ def run_full_training(
             manifest["base_checkpoint_uri"] = str(bundle["origin_checkpoint"])
             manifest["base_checkpoint_sha256"] = bundle.get("origin_sha256")
             manifest["origin_checkpoint_uri"] = str(bundle["origin_checkpoint"])
+        if mixer is not None:
+            manifest["replay_suite"] = "libero_90"
+            manifest["replay_target_fraction"] = config.replay.target_fraction if config.replay else 0.75
+            manifest["replay_seen_fraction"] = config.replay.seen_fraction if config.replay else 0.25
         if bundle.get("task_slug"):
             manifest["task_slug"] = bundle["task_slug"]
             manifest["task_text"] = bundle.get("task_text")
@@ -408,6 +447,7 @@ def run_full_training(
     cursor = FrameCursor.create(
         n_samples, seed=config.training.seed, with_replacement=config.training.sample_with_replacement
     )
+    sampler: FrameCursor | ReplayMixer = mixer if mixer is not None else cursor
     try:
         scope_report = assert_module_trainable_scope(
             policy,
@@ -427,8 +467,8 @@ def run_full_training(
                 accumulation_position=accum_position,
                 epoch_fraction=epoch_fraction,
                 metrics_cursor=csv_logger.row_count(),
-                sampler=cursor,  # type: ignore[arg-type]
-                sample_order=list(cursor.order),
+                sampler=sampler,  # type: ignore[arg-type]
+                sample_order=list(cursor.order) if mixer is None else [],
             )
             state["resolved_precision"] = precision
             names = (run_dir / TRAINABLE_PARAMETERS_NAME).read_text(encoding="utf-8").splitlines()
@@ -467,7 +507,11 @@ def run_full_training(
             global_step = int(train_state["global_step"])
             samples_seen = int(train_state["samples_seen"])
             accum_position = int(train_state["accumulation_position"])
-            cursor.load_state_dict(train_state["sampler"])
+            sampler_state = train_state["sampler"]
+            if mixer is not None:
+                mixer.load_state_dict(sampler_state)
+            else:
+                cursor.load_state_dict(sampler_state)
             events.emit("resume", {"global_step": global_step, "path": str(resume_from)})
             _append_log(run_dir, f"resumed from {resume_from} at step {global_step}")
         else:
@@ -483,14 +527,34 @@ def run_full_training(
 
         policy.train()
         started = time.perf_counter()
+        window_loss = 0.0
+        window_n_target = 0
+        window_n_replay = 0
         while global_step < stop_at:
             try:
                 if accum_position == 0:
                     optimizer.zero_grad(set_to_none=True)
                     window_loss = 0.0
+                    window_n_target = 0
+                    window_n_replay = 0
                 data_t0 = time.perf_counter()
-                indices = cursor.next_indices(physical)
-                samples = [dataset[index] for index in indices]
+                mix_stats = {"target_fraction": 1.0, "seen_fraction": 0.0, "n_target": physical, "n_replay": 0}
+                if mixer is not None:
+                    draw = mixer.next_draw(physical)
+                    samples = gather_mixed_samples(
+                        draw, target_dataset=dataset, replay_dataset=replay_dataset
+                    )
+                    mix_stats = {
+                        "target_fraction": draw.target_fraction,
+                        "seen_fraction": draw.seen_fraction,
+                        "n_target": draw.n_target,
+                        "n_replay": draw.n_replay,
+                    }
+                else:
+                    indices = cursor.next_indices(physical)
+                    samples = [dataset[index] for index in indices]
+                window_n_target += int(mix_stats["n_target"])
+                window_n_replay += int(mix_stats["n_replay"])
                 batch = _move_batch(preprocessor(_collate(samples)), device)
                 data_time = time.perf_counter() - data_t0
                 step_t0 = time.perf_counter()
@@ -554,7 +618,34 @@ def run_full_training(
                         gpu_memory_reserved_mb=reserved,
                     )
                     csv_logger.append(row)
-                    events.emit("step", {"global_step": global_step, "loss": mean_loss, "lr": lr})
+                    events.emit(
+                        "step",
+                        {
+                            "global_step": global_step,
+                            "loss": mean_loss,
+                            "lr": lr,
+                            "n_target": window_n_target,
+                            "n_replay": window_n_replay,
+                            "target_fraction": (
+                                window_n_target / float(window_n_target + window_n_replay)
+                                if (window_n_target + window_n_replay)
+                                else 1.0
+                            ),
+                            "seen_fraction": (
+                                window_n_replay / float(window_n_target + window_n_replay)
+                                if (window_n_target + window_n_replay)
+                                else 0.0
+                            ),
+                            **(
+                                {
+                                    "cum_target_fraction": mixer.cumulative_fractions()[0],
+                                    "cum_seen_fraction": mixer.cumulative_fractions()[1],
+                                }
+                                if mixer is not None
+                                else {}
+                            ),
+                        },
+                    )
                     tb.log_train_step(
                         step=global_step,
                         loss=mean_loss,

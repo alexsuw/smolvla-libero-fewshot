@@ -194,8 +194,9 @@ pinned upstream revisions.
   baseline (no LoRA/replay). TODO 29 **code** is `eval_target.py --run-dir`
   plus `verify_baseline_eval.py` (≥20 rollouts and failure videos per complete
   checkpoint). TODO 30 **code** is `train_target.py --config target_lora.yaml`
-  (PEFT wrap, merged-free adapter sidecar, same nested episodes). GPU runs wait
-  on the freeze. Replay-LoRA remains unwired.
+  (PEFT wrap, merged-free adapter sidecar, same nested episodes). TODO 31
+  **code** is Replay-LoRA: 75/25 mixer over `libero_90` only, same LoRA wrap.
+  GPU runs wait on the freeze.
 
 ## Seen-pretrain trainer (TODO 23 code)
 
@@ -244,5 +245,18 @@ pinned upstream revisions.
   `merge_and_unload` is refused.
 - `--print-grid --config configs/train/target_lora.yaml` lists the 18 LoRA
   cells. Eval: `--train-config configs/train/target_lora.yaml --print-grid`.
-- Replay-LoRA YAML still fail-closes (`Replay-LoRA is not wired`).
+- Replay-LoRA uses `--config configs/train/target_replay_lora.yaml`.
 - Darwin / unfrozen seen YAML fail closed with `no GPU training was started`.
+
+## Replay-LoRA (TODO 31 code)
+
+- Same frozen seen origin, nested target episode IDs, LoRA wrap, and target
+  subset MEAN_STD as the LoRA ablation. Replay frames are normalized with
+  those same target stats so the ablation is not confounded by a second scaler.
+- Mixer is deterministic from the train seed: 75% target / 25% `libero_90`
+  via remainder carry so the long-run fraction matches. `libero_goal` pool or
+  task text fails closed. Seen frames do not change N or epoch length.
+- Each optimizer-step event logs `n_target` / `n_replay` and cumulative
+  fractions. Replay cursor is independent (`seed+1`) and always samples with
+  replacement from the full `libero_90` frame pool (all 73 tasks).
+- Eval: `--train-config configs/train/target_replay_lora.yaml`.

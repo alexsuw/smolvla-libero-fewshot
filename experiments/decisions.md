@@ -36,5 +36,6 @@ Seen-FT LoRA is not part of the mandatory path. Primary seen-pretrain stays
 Action Expert + projections. Target baseline is target-only continuation from
 the frozen seen checkpoint with the same scope: no LoRA, no replay. Target LoRA
 train/eval **code** is in `train_target.py --config configs/train/target_lora.yaml`;
-GPU LoRA cells wait until the 18-cell baseline exists on the VM.
+GPU LoRA cells wait until the 18-cell baseline exists on the VM. Replay-LoRA
+**code** is `--config configs/train/target_replay_lora.yaml` (75/25 `libero_90`).
 

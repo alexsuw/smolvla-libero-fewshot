@@ -215,3 +215,26 @@ uv run python scripts/train_target.py \
   --output-dir "$VLA_RUNS_DIR/target_lora/drawer_middle_n05_s42" \
   --log-freq 50
 ```
+
+Replay-LoRA is the same 18 cells plus 25% `libero_90` mix:
+
+```bash
+uv run python scripts/train_target.py \
+  --config configs/train/target_replay_lora.yaml \
+  --print-grid
+
+uv run python scripts/eval_target.py \
+  --train-config configs/train/target_replay_lora.yaml \
+  --print-grid
+
+uv run python scripts/verify_baseline_eval.py --method replay_lora --print-grid
+
+uv run python scripts/train_target.py \
+  --config configs/train/target_replay_lora.yaml \
+  --task drawer_middle \
+  --n-demos 5 \
+  --seed 42 \
+  --profile full \
+  --output-dir "$VLA_RUNS_DIR/target_replay_lora/drawer_middle_n05_s42" \
+  --log-freq 50
+```

@@ -1,7 +1,8 @@
 """Target-only continuation from the frozen seen checkpoint.
 
-Baseline: no LoRA, no replay. LoRA ablation: same origin/episodes, PEFT wrap,
-no replay. Grid: 3 tasks × {5,10,25} × seeds {42,123}.
+Baseline: no LoRA, no replay. LoRA: same origin/episodes, PEFT wrap, no replay.
+Replay-LoRA: same LoRA wrap plus 75/25 libero_90 mix. Grid:
+3 tasks × {5,10,25} × seeds {42,123}.
 """
 
 from __future__ import annotations

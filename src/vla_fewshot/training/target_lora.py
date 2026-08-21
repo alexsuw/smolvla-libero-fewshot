@@ -70,8 +70,13 @@ def assert_target_train_config(config: TrainConfig) -> None:
     if config.method == "lora":
         assert_target_lora_train_config(config)
         return
+    if config.method == "replay_lora":
+        from vla_fewshot.training.replay_mixer import assert_replay_lora_train_config
+
+        assert_replay_lora_train_config(config)
+        return
     raise TrainError(
-        "Replay-LoRA is not wired on this path yet. no GPU training was started."
+        "unknown target method. no GPU training was started."
     )
 
 

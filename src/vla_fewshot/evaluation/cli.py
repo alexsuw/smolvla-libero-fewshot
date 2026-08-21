@@ -129,8 +129,8 @@ def _run_cell(
         n_demos = args.n_demos
         train_seed = args.seed
         train = _load_train_config(args.train_config)
-        if train.method not in {"baseline", "lora"}:
-            raise SystemExit("target eval --train-config must be baseline or lora")
+        if train.method not in {"baseline", "lora", "replay_lora"}:
+            raise SystemExit("target eval --train-config must be baseline, lora, or replay_lora")
         method = train.method
         stage = "target_eval"
     else:
