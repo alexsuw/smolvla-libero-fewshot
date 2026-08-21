@@ -1,6 +1,6 @@
 kind: revisions
 schema_version: 1
-status: resolved_m1_pending_hardware
+status: validated_m1
 snapshot_date: "2026-08-20"
 python: "3.12.8"
 dataset:
