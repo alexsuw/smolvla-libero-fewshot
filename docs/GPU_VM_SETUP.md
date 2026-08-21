@@ -16,6 +16,18 @@ GPU пока покупать не нужно. Этот документ исп�
 Doctor записывает фактические GPU name, VRAM, compute capability, supported
 Torch architectures и BF16 support. Модель не предполагает объём VRAM в коде.
 
+Host notes from the first RTX VM:
+
+- Ubuntu 24.04 apt FFmpeg is `6.1.1`. Full doctor requires exact `7.1.1` with
+  `libaom-av1` (this host built it into `~/.local`).
+- Headless CUDA images often omit NVIDIA EGL. Install `libnvidia-gl-<driver>`
+  so `/usr/share/glvnd/egl_vendor.d/10_nvidia.json` exists; otherwise
+  `libero_two_camera` fails even when MuJoCo EGL passes.
+- The Linux user must be in groups `video` and `render` to open `/dev/dri`.
+  New shells pick this up after login; in an existing session use
+  `sg render` / `sg video`.
+- Put the 7.1.1 `ffmpeg` on `PATH` before any distro binary.
+
 ## VM validation
 
 ```bash
