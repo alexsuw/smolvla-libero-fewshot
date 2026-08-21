@@ -156,11 +156,13 @@ pinned upstream revisions.
   `configs/splits/pseudo_target_splits.json` (three `libero_90` texts). Static
   smoke still defaults to `synthetic_seen` so it cannot look like `final_v1`.
 - `--profile full` on Linux + CUDA runs live SmolVLA/LIBERO rollouts through
-  the same JSONL resume loop. Target and language-control full eval stay
-  refused until `configs/selected_seen_checkpoint.yaml` is frozen. No LeRobot
-  eval CLI is called. `n_action_steps` is set to the eval
-  `action_chunk_horizon` (10). Env task IDs are resolved by exact language
-  match, not dataset `task_index`.
+  the same JSONL resume loop. Target, zero-shot, and language-control full
+  eval stay refused until `configs/selected_seen_checkpoint.yaml` is frozen.
+  Zero-shot (`scripts/eval_zero_shot.py`) uses that frozen hash, `n_demos=0`,
+  and an empty training episode list. `--run-dir` is refused so it cannot
+  score every seen-pretrain step. No LeRobot eval CLI is called.
+  `n_action_steps` is set to the eval `action_chunk_horizon` (10). Env task
+  IDs are resolved by exact language match, not dataset `task_index`.
 - Seen checkpoint selection scores only the three probe slugs, drops NaN/
   unstable rows, rejects `static_*` protocols and any target-task slug, then
   takes the earliest checkpoint within `tolerance_success=0.02` of the best
@@ -183,8 +185,9 @@ pinned upstream revisions.
 - TODO 23 **code** is the project SmolVLA trainer. The 100k GPU run itself
   still waits on a Linux CUDA VM. TODO 24 **code** is probe eval + selection;
   live probe rollouts wait on that same VM. TODO 25 (seen LoRA) is skipped.
-  TODO 28 **code** is `train_target.py` baseline (no LoRA/replay) from the
-  frozen seen checkpoint; the 18 GPU runs wait on that freeze.
+  TODO 26 **code** is `eval_zero_shot.py` (3 tasks × ≥20, empty train list,
+  frozen seen hash). TODO 28 **code** is `train_target.py` baseline
+  (no LoRA/replay) from the frozen seen checkpoint; GPU runs wait on that freeze.
 
 ## Seen-pretrain trainer (TODO 23 code)
 

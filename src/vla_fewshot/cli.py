@@ -64,6 +64,11 @@ COMMANDS: dict[str, CommandSpec] = {
         "M7",
         ("config", "checkpoint", "task"),
     ),
+    "eval_zero_shot": CommandSpec(
+        "Run zero-shot final eval: 3 tasks × ≥20, empty train list.",
+        "M7",
+        ("config", "checkpoint", "task"),
+    ),
     "eval_language_control": CommandSpec(
         "Run paired correct/wrong instruction rollouts.",
         "M7",

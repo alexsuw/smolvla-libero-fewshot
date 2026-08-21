@@ -120,7 +120,19 @@ uv run python scripts/select_seen_checkpoint.py \
   --write
 ```
 
-Seen LoRA (TODO 25) is skipped. After the freeze, run the 18-cell baseline
+Zero-shot from the frozen seen checkpoint (TODO 26). Empty train list, 3×20,
+same hash. `--task` omitted runs all three:
+
+```bash
+uv run python scripts/eval_zero_shot.py --print-grid
+
+uv run python scripts/eval_zero_shot.py \
+  --profile full \
+  --output-dir "$VLA_RUNS_DIR/zero_shot" \
+  --output-root "$VLA_DATASETS_DIR"
+```
+
+Seen LoRA (TODO 25) is skipped. After zero-shot, run the 18-cell baseline
 (no LoRA, no replay). Print the grid first:
 
 ```bash

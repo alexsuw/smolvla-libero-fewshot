@@ -442,9 +442,33 @@ uv run python scripts/train_target.py --help
 uv run python scripts/train_target.py --print-grid
 ```
 
+## Zero-shot final eval (TODO 26 code)
+
+Status: software complete on CPU. Live 3×20 rollouts wait until the seen
+checkpoint YAML is `frozen`.
+
+Completed:
+
+- `eval_zero_shot.py` runs all three `libero_goal` targets when `--task` is
+  omitted; `--print-grid` lists per-task commands;
+- `n_demos=0`, empty `training_episode_ids`, method `seen`;
+- full profile loads the frozen seen URI and checks `sha256`; `--run-dir` is
+  refused;
+- Darwin / unfrozen YAML fail closed with `no GPU evaluation was started`.
+
+Acceptance commands:
+
+```bash
+uv sync --frozen --extra data
+uv run pytest -q tests/unit/test_zero_shot.py tests/integration/test_eval_resume.py
+uv run python scripts/eval_zero_shot.py --help
+uv run python scripts/eval_zero_shot.py --print-grid
+```
+
 ## Next milestone
 
 On a Linux CUDA VM: 200-step smoke, 100k `seen_expert`, then `eval_seen --run-dir`
-and `select_seen_checkpoint.py --write`. Do not tune on target success. Then the
-18-cell `train_target` baseline and `eval_target --run-dir`. Seen LoRA is skipped.
-Target LoRA waits until that baseline is trained and evaluated.
+and `select_seen_checkpoint.py --write`. Do not tune on target success. Then
+`eval_zero_shot.py` (3×20), then the 18-cell `train_target` baseline.
+Seen LoRA is skipped. Target LoRA waits until that baseline is trained and
+evaluated. Paired language control is the next code slice after this one.

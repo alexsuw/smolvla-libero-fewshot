@@ -235,6 +235,12 @@ def run_static_evaluation(
     written = 0
     skipped = 0
     episode_ids = training_episode_ids(splits, task_slug=task_slug, n_demos=n_demos)
+    if stage == "zero_shot":
+        from vla_fewshot.evaluation.zero_shot import assert_zero_shot_cell
+
+        assert_zero_shot_cell(
+            n_demos=n_demos, train_seed=train_seed, episode_ids=episode_ids
+        )
 
     for spec in planned:
         key = spec.key(digest)

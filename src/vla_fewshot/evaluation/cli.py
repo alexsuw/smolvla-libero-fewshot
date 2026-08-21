@@ -27,8 +27,15 @@ EvalKind = Literal["target", "zero_shot", "language_control", "seen"]
 TARGET_SLUGS = ("drawer_middle", "bowl_stove", "wine_cabinet")
 
 
-def add_eval_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--config", type=Path, required=True)
+def add_eval_arguments(
+    parser: argparse.ArgumentParser,
+    *,
+    default_config: Path | None = None,
+) -> None:
+    if default_config is None:
+        parser.add_argument("--config", type=Path, required=True)
+    else:
+        parser.add_argument("--config", type=Path, default=default_config)
     parser.add_argument("--checkpoint", type=Path)
     parser.add_argument(
         "--profile",
@@ -63,19 +70,22 @@ def _load_train_config(path: Path) -> TrainConfig:
     return loaded
 
 
-def _seen_tasks(kind: EvalKind, args: argparse.Namespace) -> list[str]:
-    if kind != "seen":
-        if not args.task:
-            raise SystemExit("--task is required")
-        return [args.task]
-    if args.profile == "static":
-        return [args.task or "synthetic_seen"]
-    probes = list(load_calibration().seen_probe_slugs)
+def _eval_tasks(kind: EvalKind, args: argparse.Namespace, config: EvalConfig) -> list[str]:
+    zero_shot = kind == "zero_shot" or config.stage == "zero_shot"
+    if kind == "seen":
+        if args.profile == "static":
+            return [args.task or "synthetic_seen"]
+        probes = list(load_calibration().seen_probe_slugs)
+        if args.task:
+            if args.task not in probes:
+                raise SystemExit(f"--task must be one of {probes} for full seen probes")
+            return [args.task]
+        return probes
     if args.task:
-        if args.task not in probes:
-            raise SystemExit(f"--task must be one of {probes} for full seen probes")
         return [args.task]
-    return probes
+    if zero_shot:
+        return list(TARGET_SLUGS)
+    raise SystemExit("--task is required")
 
 
 def _run_cell(
@@ -93,7 +103,7 @@ def _run_cell(
     method: Literal["baseline", "lora", "replay_lora", "seen"]
     stage: Literal["zero_shot", "target_eval", "language_control", "seen_probe"]
     language = False
-    if kind in {"target", "zero_shot"} and config.stage == "zero_shot":
+    if kind == "zero_shot" or config.stage == "zero_shot":
         n_demos = 0
         train_seed = None
         method = "seen"
@@ -177,12 +187,15 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description={
             "target": "Run resumable fixed-seed target rollouts.",
-            "zero_shot": "Run resumable fixed-seed target rollouts.",
+            "zero_shot": "Run zero-shot final eval: 3 tasks × ≥20, empty train list.",
             "language_control": "Run paired correct/wrong instruction rollouts.",
             "seen": "Evaluate only the fixed seen probe suite.",
         }[kind]
     )
-    add_eval_arguments(parser)
+    add_eval_arguments(
+        parser,
+        default_config=Path("configs/eval/zero_shot.yaml") if kind == "zero_shot" else None,
+    )
     train_default = (
         Path("configs/train/target_baseline.yaml")
         if kind == "target"
@@ -198,9 +211,22 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
     if kind == "target":
         parser.add_argument("--n-demos", type=int, choices=(0, 5, 10, 25))
         parser.add_argument("--seed", type=int, choices=(42, 123))
+    if kind == "zero_shot":
+        parser.add_argument(
+            "--print-grid",
+            action="store_true",
+            help="Print the 3 independent zero-shot task commands and exit.",
+        )
     args = parser.parse_args(argv)
     os.environ.setdefault("WANDB_MODE", "disabled")
     os.environ.setdefault("WANDB_DISABLED", "true")
+
+    if kind == "zero_shot" and getattr(args, "print_grid", False):
+        from vla_fewshot.evaluation.zero_shot import zero_shot_commands
+
+        for command in zero_shot_commands(config=args.config):
+            print(" ".join(command))
+        return 0
 
     if args.profile == "full":
         try:
@@ -218,11 +244,33 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
     if args.profile == "static":
         config = static_smoke_config(config)
 
-    if kind in {"target", "language_control"} and not args.task:
+    zero_shot = kind == "zero_shot" or config.stage == "zero_shot"
+    if zero_shot:
+        from vla_fewshot.evaluation.protocol import ProtocolError
+        from vla_fewshot.evaluation.zero_shot import assert_zero_shot_config
+
+        try:
+            assert_zero_shot_config(
+                load_eval_config(args.config) if args.profile == "static" else config,
+                profile=args.profile,
+            )
+        except ProtocolError as error:
+            print(str(error), file=sys.stderr)
+            return 1
+        if getattr(args, "n_demos", None) not in (None, 0):
+            parser.error("zero-shot forbids --n-demos > 0")
+        if args.run_dir is not None:
+            parser.error(
+                "zero-shot evaluates only the frozen seen checkpoint; do not pass --run-dir"
+            )
+
+    if kind == "language_control" and not args.task:
+        parser.error("--task is required")
+    if kind == "target" and not zero_shot and not args.task:
         parser.error("--task is required")
 
     try:
-        tasks = _seen_tasks(kind, args)
+        tasks = _eval_tasks(kind, args, config)
     except SystemExit as error:
         parser.error(str(error))
 
@@ -251,6 +299,24 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
             print(f"no complete checkpoints under {args.run_dir}", file=sys.stderr)
             return 1
         checkpoints = [(step_directory_name(step), path) for step, path in listed]
+    elif zero_shot:
+        from vla_fewshot.evaluation.zero_shot import (
+            assert_frozen_checkpoint_hash,
+            resolve_frozen_eval_checkpoint,
+        )
+
+        try:
+            origin, expected = resolve_frozen_eval_checkpoint(args.checkpoint)
+            if not origin.exists():
+                raise FileNotFoundError(
+                    f"frozen seen checkpoint missing: {origin}. "
+                    "no GPU evaluation was started."
+                )
+            assert_frozen_checkpoint_hash(origin, expected)
+        except (RuntimeError, FileNotFoundError) as error:
+            print(str(error), file=sys.stderr)
+            return 1
+        checkpoints = [("ckpt", origin)]
     else:
         if args.checkpoint is None:
             parser.error("--checkpoint is required for --profile full")
