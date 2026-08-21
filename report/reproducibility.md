@@ -30,6 +30,6 @@ report contract.
 
 ## Known deviations
 
-- M1 hardware acceptance is still `resolved_m1_pending_hardware`.
-- Live LIBERO/SmolVLA eval and 100k seen-pretrain are deferred until that gate.
+- M1 hardware acceptance is `validated_m1` on the RTX PRO 6000 Blackwell VM.
+- Live LIBERO/SmolVLA eval and 100k seen-pretrain remain deferred until later gates.
 - Wrist image transform remains identity relative to the dataset/policy key.
