@@ -6,9 +6,9 @@
 
 ## Текущий статус
 
-M0 и реализация M1 завершены; hardware acceptance M1 остаётся pending до
-финального RTX/Colab этапа. M2 (metadata/split/leakage) реализуется на CPU.
-Обучение и платные GPU-запуски до прохождения smoke-gates M1–M5 запрещены.
+M0–M4 реализация завершена; hardware acceptance M1/M3/M4 остаётся pending.
+M5 (checkpoint/resume smoke) реализован на CPU. Обучение SmolVLA и платные
+GPU-запуски до прохождения hardware-gates M1–M5 запрещены.
 Актуальный прогресс и evidence перечислены в [`STATUS.md`](STATUS.md).
 
 ## Быстрый старт для разработки
@@ -18,18 +18,20 @@ M0 и реализация M1 завершены; hardware acceptance M1 ост�
 ```bash
 uv sync --frozen --extra data
 uv run pytest -q
-make check-m2
+make check-m5
 ```
 
-Посмотреть интерфейс будущей команды можно без запуска вычислений:
+Посмотреть интерфейс команд можно без запуска GPU:
 
 ```bash
 uv run python scripts/train_seen.py --help
+uv run python scripts/train_seen.py --config configs/train/smoke.yaml \
+  --profile static --protocol resume-compare --output-dir /tmp/vla-m5
 ```
 
-До реализации соответствующего milestone вычислительные entry points
-завершаются с понятной ошибкой. Это защищает от случайного запуска training
-на неподготовленной машине.
+`--profile full` завершается до GPU allocation, пока hardware-gates M1–M4
+не пройдены. Это защищает от случайного запуска training на неподготовленной
+машине.
 
 ## Dataset metadata (M2)
 

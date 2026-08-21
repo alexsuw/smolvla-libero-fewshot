@@ -1,1 +1,1 @@
-run_id,stage,method,status,manifest_path
+run_id,stage,method,status,manifest_path,git_commit,train_seed,final_checkpoint_uri

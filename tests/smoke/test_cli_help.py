@@ -49,5 +49,6 @@ def test_training_stub_fails_before_compute() -> None:
         timeout=20,
         env=env,
     )
-    assert completed.returncode == 2
-    assert "no compute or external write was started" in completed.stderr
+    assert completed.returncode == 1
+    combined = completed.stdout + completed.stderr
+    assert "no GPU training was started" in combined

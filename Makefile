@@ -3,7 +3,7 @@ PYTHON := $(UV) run python
 
 .PHONY: help sync sync-data sync-gpu test validate-configs validate-revisions \
 	doctor-static doctor check-cli check-git-safety check check-m1-static \
-	verify-split verify-leakage check-m2 check-m3 check-m4
+	verify-split verify-leakage check-m2 check-m3 check-m4 check-m5
 
 help:
 	@echo "sync              Install the locked M0 development environment"
@@ -23,6 +23,7 @@ help:
 	@echo "check-m2          Run M0/M1 static checks plus M2 unit contracts"
 	@echo "check-m3          Run M2 checks plus env/gripper/parity unit contracts"
 	@echo "check-m4          Run M3 checks plus SmolVLA feature/allowlist contracts"
+	@echo "check-m5          Run M4 checks plus checkpoint/resume smoke contracts"
 
 sync:
 	$(UV) sync --frozen
@@ -79,3 +80,14 @@ check-m4:
 	$(MAKE) check-m3
 	$(PYTHON) scripts/smoke_inference.py --config configs/train/smoke.yaml \
 		--profile static --output-dir artifacts/validation/M4
+
+check-m5:
+	$(MAKE) check-m4
+	$(PYTHON) scripts/train_seen.py --config configs/train/smoke.yaml \
+		--profile static --protocol resume-compare \
+		--output-dir artifacts/validation/M5
+	$(PYTHON) scripts/verify_checkpoint.py \
+		--checkpoint artifacts/validation/M5/run_a/checkpoints/step_000200
+	$(PYTHON) scripts/build_registry.py \
+		--runs-root artifacts/validation/M5 \
+		--output artifacts/validation/M5/registry.csv

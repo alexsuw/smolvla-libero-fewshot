@@ -236,8 +236,59 @@ Deferred hardware gates:
 
 These must pass before M5 training. Static CI cannot close this gate.
 
+## M5 — Training/checkpoint/resume smoke
+
+Status: implementation and CPU/static acceptance complete; live SmolVLA
+200-step training remains deferred until Linux CUDA/`gpu` extra is available
+and M1/M3/M4 hardware gates pass. M1 revision status stays
+`resolved_m1_pending_hardware`.
+
+Completed:
+
+- TensorBoard JSONL fallback + CSV/JSONL/plain-text logs; W&B stays off;
+- immutable `manifest.json`, registry rebuild from manifests;
+- atomic checkpoint directories with `COMPLETED.json`, checksums, and
+  fresh-instance load;
+- exact 0→200 vs 0→100→200 comparison, including a fresh subprocess resume;
+- local dry-run-first backup; prune remains inventory-only.
+
+Acceptance commands:
+
+```bash
+uv sync --frozen --extra data
+make check-m5
+```
+
+Local result on 2026-08-21:
+
+- `make check-m5`: passed on CPU;
+- CLI help validation: 28 commands passed;
+- Git safety: passed;
+- pytest: 118 passed, 4 skipped without GPU/storage/live-HF env vars;
+- exact 0→200 vs 0→100→200 comparison passed with bit-exact weights;
+- `python scripts/train_seen.py` without `--profile static` fails before GPU
+  allocation;
+- static `acceptance_complete=true` for the toy resume protocol only.
+
+Local evidence:
+
+```text
+artifacts/validation/M5/resume_compare.json
+artifacts/validation/M5/resume_compare.md
+artifacts/validation/M5/registry.csv
+```
+
+Deferred hardware gates:
+
+- `uv sync --frozen --extra gpu` on Linux with CUDA;
+- `python scripts/train_seen.py --config configs/train/smoke.yaml --profile full`;
+- Colab 0→100→200 on pinned SmolVLA with dataset videos.
+
+These must pass before paid long seen-pretrain (M6). Static CI cannot close
+the SmolVLA training gate.
+
 ## Next milestone
 
-M5 — Training/checkpoint/resume smoke (200 steps, exact resume). Still no paid
-long VM run until M0–M5 gates, including the deferred M1/M3/M4 hardware checks,
-are complete.
+Eval protocol (Explicit TODO 19): fixed-seed rollouts, JSONL resume, traces
+and failure videos. Do not start paid `libero_90` seen-pretrain until M0–M5
+hardware gates and the remaining pre-train TODOs are done.

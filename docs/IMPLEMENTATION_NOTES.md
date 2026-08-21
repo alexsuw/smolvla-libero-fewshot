@@ -109,3 +109,25 @@ pinned upstream revisions.
 - Static smoke (`--profile static`) never downloads weights. Full smoke needs
   Linux `gpu` extra and CUDA; identity MEAN_STD stats are smoke-only and must
   not be used for training.
+
+## M5 implementation
+
+- Pinned LeRobot `lerobot-train` (`src/lerobot/scripts/lerobot_train.py` at
+  `d451fe4…`) uses `WandBLogger` and the `lerobot[training]` extra. The project
+  trainer does not call that CLI. W&B stays disabled (`WANDB_MODE=disabled`).
+- TensorBoard's Python package is in the Linux `gpu` extra. CPU/static logging
+  always writes `tensorboard/tags.jsonl` with stable `train/*` tags; a
+  `SummaryWriter` is used only when importable.
+- Static `--profile static` proves atomic checkpoints, CSV/JSONL, manifests,
+  registry rebuild, local dry-run-first backup, and exact 0→200 vs
+  0→100→200 resume on a toy policy with SmolVLA-like parameter names.
+  Weights are stored as IEEE-754 hex so JSON round-trips are bit-exact.
+- `--profile full` fails closed before GPU allocation until M1/M3/M4 hardware
+  gates pass. It never starts SmolVLA training.
+- Resume may override only `log_freq`, `destination`, `stop_after`,
+  `backup_dir`, and `output_dir`. Dataset revision, split, trainable scope,
+  optimizer, scheduler, batch, and seed are frozen.
+- `sync_artifacts.py` default is dry-run local mirror and never deletes.
+  `prune_artifacts.py` is inventory-only even with `--execute`.
+- Object-storage upload remains TODO 20. Local second-directory copy is the
+  M5 durable-backup stand-in.
