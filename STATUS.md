@@ -417,8 +417,34 @@ uv run python scripts/eval_seen.py --help
 uv run python scripts/select_seen_checkpoint.py --help
 ```
 
+## Target baseline (TODO 28 code)
+
+Status: software complete on CPU. GPU runs wait until the seen checkpoint YAML
+is `frozen`. Seen LoRA (TODO 25) is skipped and does not delay this path.
+
+Completed:
+
+- `train_target.py` continues from the frozen seen `weights.pt` with Action
+  Expert + projections only (no LoRA, no replay);
+- nested `5/10/25` episode prefixes, `sample_with_replacement`,
+  `min(100 epochs, 12000 steps)`, final checkpoint always saved;
+- `--print-grid` lists the 18 independent cells;
+- `eval_target.py --run-dir` evaluates every complete baseline checkpoint;
+- Darwin / unfrozen YAML / LoRA configs fail closed with
+  `no GPU training was started`.
+
+Acceptance commands:
+
+```bash
+uv sync --frozen --extra data
+uv run pytest -q tests/unit/test_target_baseline.py
+uv run python scripts/train_target.py --help
+uv run python scripts/train_target.py --print-grid
+```
+
 ## Next milestone
 
 On a Linux CUDA VM: 200-step smoke, 100k `seen_expert`, then `eval_seen --run-dir`
-and `select_seen_checkpoint.py --write`. Do not tune on target success. Optional
-seen LoRA is TODO 25 and must not delay the baseline.
+and `select_seen_checkpoint.py --write`. Do not tune on target success. Then the
+18-cell `train_target` baseline and `eval_target --run-dir`. Seen LoRA is skipped.
+Target LoRA waits until that baseline is trained and evaluated.

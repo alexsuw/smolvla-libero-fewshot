@@ -120,3 +120,33 @@ uv run python scripts/select_seen_checkpoint.py \
   --write
 ```
 
+Seen LoRA (TODO 25) is skipped. After the freeze, run the 18-cell baseline
+(no LoRA, no replay). Print the grid first:
+
+```bash
+uv run python scripts/train_target.py --print-grid
+```
+
+Example cell and eval of every complete checkpoint:
+
+```bash
+uv run python scripts/train_target.py \
+  --config configs/train/target_baseline.yaml \
+  --task drawer_middle \
+  --n-demos 5 \
+  --seed 42 \
+  --profile full \
+  --output-dir "$VLA_RUNS_DIR/target_baseline/drawer_middle_n05_s42" \
+  --log-freq 50
+
+uv run python scripts/eval_target.py \
+  --config configs/eval/final.yaml \
+  --profile full \
+  --run-dir "$VLA_RUNS_DIR/target_baseline/drawer_middle_n05_s42" \
+  --task drawer_middle \
+  --n-demos 5 \
+  --seed 42 \
+  --output-dir "$VLA_RUNS_DIR/target_eval/drawer_middle_n05_s42" \
+  --output-root "$VLA_DATASETS_DIR"
+```
+

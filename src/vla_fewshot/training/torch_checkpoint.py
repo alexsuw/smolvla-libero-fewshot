@@ -168,6 +168,32 @@ def save_torch_checkpoint(
     return final_dir
 
 
+def load_policy_weights(
+    directory: Path,
+    *,
+    policy: Any,
+    expected_sha256: str | None = None,
+) -> dict[str, Any]:
+    """Load weights.pt only. Fresh optimizer is created by the caller."""
+
+    import torch
+
+    report = verify_torch_checkpoint_dir(directory)
+    if expected_sha256 is not None and report["weights_sha256"] != expected_sha256:
+        raise CheckpointError(
+            f"origin checkpoint hash {report['weights_sha256']} != {expected_sha256}"
+        )
+    map_location = next(policy.parameters()).device
+    weights = torch.load(
+        directory / CHECKPOINT_WEIGHTS_PT_NAME,
+        map_location=map_location,
+        weights_only=True,
+    )
+    policy.load_state_dict(weights)
+    report["fresh_load_verified"] = True
+    return report
+
+
 def load_torch_checkpoint(
     directory: Path,
     *,

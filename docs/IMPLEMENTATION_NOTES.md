@@ -58,8 +58,8 @@ pinned upstream revisions.
 - Logical subsets write `subset_manifest.json` with nested `N=5/10/25` IDs and
   refuse to overwrite a different episode list. Videos are not copied.
 - `assert_no_leakage` is invoked from `train_seen`, `train_target` and
-  `collect_results` when pinned suite metadata is already present. Those
-  commands still refuse training until later milestones.
+  `collect_results` when pinned suite metadata is already present. `train_target`
+  still refuses until the seen checkpoint YAML is frozen, then requires Linux CUDA.
 - Wrist camera key in this dataset revision remains
   `observation.images.wrist_image`. Environment mapping to LeRobot `image2` is
   still an M3 decision.
@@ -182,7 +182,9 @@ pinned upstream revisions.
 - `make_report_tables.py --bundle` checksums markdown/tables/figures only.
 - TODO 23 **code** is the project SmolVLA trainer. The 100k GPU run itself
   still waits on a Linux CUDA VM. TODO 24 **code** is probe eval + selection;
-  live probe rollouts wait on that same VM.
+  live probe rollouts wait on that same VM. TODO 25 (seen LoRA) is skipped.
+  TODO 28 **code** is `train_target.py` baseline (no LoRA/replay) from the
+  frozen seen checkpoint; the 18 GPU runs wait on that freeze.
 
 ## Seen-pretrain trainer (TODO 23 code)
 
@@ -192,8 +194,22 @@ pinned upstream revisions.
 - `LeRobotDataset(root=suite_dir, download_videos=False, revision=SHA, episodes=...)`
   is the pinned constructor. The local suite directory is
   `<datasets>/nvidia_LIBERO_LeRobot_v3/<SHA>/libero_90/`.
-- Identity MEAN_STD stats remain smoke-only. Full training requires suite
-  `stats.json` / `dataset.meta.stats`.
+- Identity MEAN_STD stats remain smoke-only. Full seen training uses suite
+  `stats.json` / `dataset.meta.stats`. Target baseline overlays subset-local
+  MEAN_STD for `observation.state` and `action` from the selected episodes;
+  image stats stay IDENTITY.
 - After auto-fit, CUDA OOM is fatal (`physical_batch_size` is frozen).
 - `make_pre_post_processors(..., preprocessor_overrides=device)` is attempted;
   a `TypeError` falls back to the signature already used by `smoke_inference.py`.
+
+## Target baseline trainer (TODO 28 code)
+
+- `train_target.py` loads the frozen seen `weights.pt` only (fresh AdamW).
+  LoRA/replay configs fail closed. Episode IDs are nested prefixes from
+  `configs/splits/target_splits.json`. Stop is `min(100 epochs, 12000 steps)`
+  with `sample_with_replacement: true`. The final step is always checkpointed
+  even when it is not on `save_steps`.
+- `--print-grid` lists the 18 independent cells. `eval_target.py --run-dir`
+  evaluates every complete baseline checkpoint (TODO 29 code; GPU after freeze).
+- Epoch length is `ceil(n_samples / effective_batch_size)` optimizer steps,
+  not physical micro-batches.

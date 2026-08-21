@@ -23,10 +23,17 @@ Hyperparameters frozen from this set, not from real targets:
 - target baseline: same optimizer, `min(100 epochs, 12000 steps)`, final
   checkpoint, no target-success early stopping
 - LoRA: r=64, alpha=64, dropout 0, LR `1e-3`, min LR `1e-4`
+  (target LoRA only; seen-FT LoRA / TODO 25 is skipped so the mandatory
+  baseline is not delayed)
 - Replay-LoRA: 75% target / 25% `libero_90` only
 - eval: 20 rollouts, seeds 1000–1019, hard reset
 - seen checkpoint: earliest probe-best within 0.02, else step 100000; hash
   remains unset until TODO 24
 
-M0 did not choose model or hyperparameter values. This freeze is the first
-and only calibration commit before the real grid.
+## Skip seen LoRA (TODO 25)
+
+Seen-FT LoRA is not part of the mandatory path. Primary seen-pretrain stays
+Action Expert + projections. Target baseline is target-only continuation from
+the frozen seen checkpoint with the same scope: no LoRA, no replay. Target LoRA
+(TODO 30) waits until the 18-cell baseline is trained and evaluated.
+

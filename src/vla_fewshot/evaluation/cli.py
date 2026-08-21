@@ -38,6 +38,11 @@ def add_eval_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument(
+        "--run-dir",
+        type=Path,
+        help="Evaluate every complete checkpoint under a training run.",
+    )
+    parser.add_argument(
         "--split",
         type=Path,
         default=Path("configs/splits/target_splits.json"),
@@ -178,29 +183,21 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
         }[kind]
     )
     add_eval_arguments(parser)
+    train_default = (
+        Path("configs/train/target_baseline.yaml")
+        if kind == "target"
+        else Path("configs/train/seen_expert.yaml")
+    )
     if kind in {"target", "zero_shot", "language_control"}:
         parser.add_argument("--task", choices=TARGET_SLUGS)
     else:
         parser.add_argument("--task", default=None)
-        parser.add_argument("--run-dir", type=Path, help="Evaluate every complete checkpoint.")
-        parser.add_argument("--data-config", type=Path, default=Path("configs/data.yaml"))
-        parser.add_argument("--output-root", type=Path)
-        parser.add_argument(
-            "--train-config",
-            type=Path,
-            default=Path("configs/train/seen_expert.yaml"),
-        )
+    parser.add_argument("--data-config", type=Path, default=Path("configs/data.yaml"))
+    parser.add_argument("--output-root", type=Path)
+    parser.add_argument("--train-config", type=Path, default=train_default)
     if kind == "target":
         parser.add_argument("--n-demos", type=int, choices=(0, 5, 10, 25))
         parser.add_argument("--seed", type=int, choices=(42, 123))
-    if kind != "seen":
-        parser.add_argument("--data-config", type=Path, default=Path("configs/data.yaml"))
-        parser.add_argument("--output-root", type=Path)
-        parser.add_argument(
-            "--train-config",
-            type=Path,
-            default=Path("configs/train/seen_expert.yaml"),
-        )
     args = parser.parse_args(argv)
     os.environ.setdefault("WANDB_MODE", "disabled")
     os.environ.setdefault("WANDB_DISABLED", "true")
@@ -246,7 +243,7 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
         return 0 if all(code == 0 for code in codes) else 1
 
     checkpoints: list[tuple[str, Path]]
-    if kind == "seen" and getattr(args, "run_dir", None) is not None:
+    if args.run_dir is not None:
         if args.checkpoint is not None:
             parser.error("pass either --checkpoint or --run-dir, not both")
         listed = list_complete_checkpoints(args.run_dir)

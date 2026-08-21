@@ -49,7 +49,17 @@ from vla_fewshot.training.optim import current_lr, resolve_gradient_accumulation
 from vla_fewshot.training.precision import autocast_cm, cuda_bf16_supported, resolve_precision
 from vla_fewshot.training.replay_mixer import assert_replay_disabled
 from vla_fewshot.training.resume import assert_resume_compatible
-from vla_fewshot.training.torch_checkpoint import load_torch_checkpoint, save_torch_checkpoint
+from vla_fewshot.training.baseline import cap_optimizer_steps
+from vla_fewshot.training.stats import (
+    collect_state_action_rows,
+    mean_std,
+    overlay_state_action_stats,
+)
+from vla_fewshot.training.torch_checkpoint import (
+    load_policy_weights,
+    load_torch_checkpoint,
+    save_torch_checkpoint,
+)
 from vla_fewshot.training.trainer import (
     TrainError,
     TrainResult,
@@ -160,6 +170,9 @@ def prepare_full_training(
     config: TrainConfig,
     *,
     datasets_dir: Path,
+    origin_checkpoint: Path | None = None,
+    origin_sha256: str | None = None,
+    episode_ids: list[int] | None = None,
 ) -> dict[str, Any]:
     """Load policy/data and freeze physical batch. No run directory yet."""
 
@@ -168,9 +181,20 @@ def prepare_full_training(
     _disable_wandb()
     assert_replay_disabled(config)
     if config.peft is not None:
-        raise TrainError("primary seen-pretrain does not wrap LoRA; use the challenger recipe later")
+        raise TrainError("this training path does not wrap LoRA. no GPU training was started.")
     if config.tracking.wandb_enabled:
         raise TrainError("tracking.wandb_enabled must stay false")
+    if config.stage == "target":
+        if origin_checkpoint is None:
+            raise TrainError(
+                "target training requires the frozen seen checkpoint. "
+                "no GPU training was started."
+            )
+        if not episode_ids:
+            raise TrainError(
+                "target training requires explicit selected episode IDs. "
+                "no GPU training was started."
+            )
     _seed_everything(config.training.seed)
 
     import torch
@@ -178,7 +202,8 @@ def prepare_full_training(
     revision_root = dataset_revision_root(
         datasets_dir, config.dataset.repo_id, config.dataset.revision
     )
-    meta, episode_ids = load_suite_for_train(revision_root, config)
+    meta, discovered_ids = load_suite_for_train(revision_root, config)
+    resolved_ids = discovered_ids if episode_ids is None else list(episode_ids)
     fps = float(meta.fps or 20)
     loaded = load_pinned_smolvla(
         repo_id=config.model.repo_id,
@@ -187,17 +212,28 @@ def prepare_full_training(
         device="cuda",
     )
     policy = loaded["policy"]
+    if origin_checkpoint is not None:
+        load_policy_weights(
+            origin_checkpoint, policy=policy, expected_sha256=origin_sha256
+        )
     chunk_size = int(getattr(policy.config, "chunk_size", 50))
     dataset = _load_lerobot_dataset(
         config=config,
         revision_root=revision_root,
-        episode_ids=episode_ids,
+        episode_ids=resolved_ids,
         chunk_size=chunk_size,
         fps=fps,
     )
     stats = getattr(getattr(dataset, "meta", None), "stats", None) or meta.stats
     if not stats:
         raise TrainError("dataset stats.json is required for MEAN_STD training; identity smoke stats are forbidden")
+    if episode_ids is not None:
+        states, actions = collect_state_action_rows(
+            dataset[index] for index in range(len(dataset))
+        )
+        stats = overlay_state_action_stats(
+            stats, state=mean_std(states), action=mean_std(actions)
+        )
     device = loaded["device"]
     preprocessor = _make_preprocessor(policy, stats, device)
     precision = resolve_precision(
@@ -229,11 +265,13 @@ def prepare_full_training(
         "preprocessor": preprocessor,
         "device": device,
         "precision": precision,
-        "episode_ids": episode_ids,
+        "episode_ids": resolved_ids,
         "chunk_size": chunk_size,
         "fps": fps,
         "loaded": loaded,
         "n_samples": len(dataset),
+        "origin_checkpoint": origin_checkpoint,
+        "origin_sha256": origin_sha256,
     }
 
 
@@ -251,10 +289,19 @@ def run_full_training(
     install_signal_handlers: bool = True,
     run_id: str | None = None,
     prepared: dict[str, Any] | None = None,
+    origin_checkpoint: Path | None = None,
+    origin_sha256: str | None = None,
+    episode_ids: list[int] | None = None,
 ) -> TrainResult:
     """Train SmolVLA with the project checkpoint/logger stack."""
 
-    bundle = prepared or prepare_full_training(config, datasets_dir=datasets_dir)
+    bundle = prepared or prepare_full_training(
+        config,
+        datasets_dir=datasets_dir,
+        origin_checkpoint=origin_checkpoint,
+        origin_sha256=origin_sha256,
+        episode_ids=episode_ids,
+    )
     config = bundle["config"]
     policy = bundle["policy"]
     dataset = bundle["dataset"]
@@ -264,11 +311,13 @@ def run_full_training(
     n_samples = int(bundle["n_samples"])
     accumulation = resolve_gradient_accumulation(config.training)
     physical = int(config.training.physical_batch_size)
-    stop_at = stop_after or config.training.max_steps
-    if config.training.epochs:
-        steps_per_epoch = max(1, (n_samples + physical - 1) // physical)
-        stop_at = min(stop_at, config.training.epochs * steps_per_epoch)
-    stop_at = min(stop_at, config.training.max_steps)
+    resolved_cap = cap_optimizer_steps(
+        max_steps=config.training.max_steps,
+        epochs=config.training.epochs,
+        n_samples=n_samples,
+        effective_batch_size=int(config.training.effective_batch_size),
+    )
+    stop_at = resolved_cap if stop_after is None else min(int(stop_after), resolved_cap)
     if stop_at < 1:
         raise TrainError("stop_after must be positive")
 
@@ -294,6 +343,14 @@ def run_full_training(
         )
         manifest["resolved_precision"] = precision
         manifest["episode_ids"] = bundle["episode_ids"] or []
+        if bundle.get("origin_checkpoint") is not None:
+            manifest["base_checkpoint_uri"] = str(bundle["origin_checkpoint"])
+            manifest["base_checkpoint_sha256"] = bundle.get("origin_sha256")
+            manifest["origin_checkpoint_uri"] = str(bundle["origin_checkpoint"])
+        if bundle.get("task_slug"):
+            manifest["task_slug"] = bundle["task_slug"]
+            manifest["task_text"] = bundle.get("task_text")
+            manifest["n_demos"] = bundle.get("n_demos")
         write_manifest(run_dir, manifest)
         atomic_write_json(
             run_dir / ENVIRONMENT_MANIFEST_NAME,
@@ -331,6 +388,7 @@ def run_full_training(
 
     last_loss: float | None = None
     final_checkpoint: Path | None = None
+    last_saved_step = 0
     global_step = 0
     samples_seen = 0
     accum_position = 0
@@ -343,6 +401,39 @@ def run_full_training(
         )
         optimizer = _adamw(policy, config)
         scaler = torch.amp.GradScaler("cuda") if precision == "fp16" else None
+
+        def _persist_checkpoint() -> Path:
+            nonlocal final_checkpoint, last_saved_step
+            epoch_fraction = samples_seen / float(n_samples)
+            state = train_state_payload(
+                global_step=global_step,
+                samples_seen=samples_seen,
+                accumulation_position=accum_position,
+                epoch_fraction=epoch_fraction,
+                metrics_cursor=csv_logger.row_count(),
+                sampler=cursor,  # type: ignore[arg-type]
+                sample_order=list(cursor.order),
+            )
+            state["resolved_precision"] = precision
+            names = (run_dir / TRAINABLE_PARAMETERS_NAME).read_text(encoding="utf-8").splitlines()
+            final_checkpoint = save_torch_checkpoint(
+                run_dir,
+                step=global_step,
+                config=config,
+                policy=policy,
+                optimizer=optimizer,
+                train_state=state,
+                trainable_names=names,
+                scaler=scaler,
+            )
+            last_saved_step = global_step
+            events.emit(
+                "checkpoint_saved",
+                {"path": str(final_checkpoint), "step": global_step},
+            )
+            _append_log(run_dir, f"saved {final_checkpoint}")
+            return final_checkpoint
+
         update_manifest(
             run_dir,
             trainable_parameter_count=scope_report["trainable_parameters"],
@@ -457,32 +548,7 @@ def run_full_training(
                     )
                     _append_log(run_dir, f"step={global_step} loss={mean_loss:.8f} lr={lr:.8g}")
                 if _should_save(global_step, config) or stop_requested["value"]:
-                    state = train_state_payload(
-                        global_step=global_step,
-                        samples_seen=samples_seen,
-                        accumulation_position=accum_position,
-                        epoch_fraction=epoch_fraction,
-                        metrics_cursor=csv_logger.row_count(),
-                        sampler=cursor,  # type: ignore[arg-type]
-                        sample_order=list(cursor.order),
-                    )
-                    state["resolved_precision"] = precision
-                    names = (run_dir / TRAINABLE_PARAMETERS_NAME).read_text(encoding="utf-8").splitlines()
-                    final_checkpoint = save_torch_checkpoint(
-                        run_dir,
-                        step=global_step,
-                        config=config,
-                        policy=policy,
-                        optimizer=optimizer,
-                        train_state=state,
-                        trainable_names=names,
-                        scaler=scaler,
-                    )
-                    events.emit(
-                        "checkpoint_saved",
-                        {"path": str(final_checkpoint), "step": global_step},
-                    )
-                    _append_log(run_dir, f"saved {final_checkpoint}")
+                    _persist_checkpoint()
                 if stop_requested["value"]:
                     break
             except Exception as error:
@@ -493,11 +559,18 @@ def run_full_training(
                     ) from error
                 raise
 
+        if (
+            not stop_requested["value"]
+            and global_step > 0
+            and last_saved_step != global_step
+        ):
+            _persist_checkpoint()
+
         tb.close()
         if stop_requested["value"]:
             mark_interrupted(run_dir)
             return TrainResult(run_dir, global_step, "interrupted", final_checkpoint, last_loss)
-        if global_step >= config.training.max_steps and final_checkpoint is not None:
+        if global_step >= stop_at and final_checkpoint is not None:
             mark_completed(run_dir, final_checkpoint_uri=str(final_checkpoint))
             events.emit("run_completed", {"global_step": global_step})
             status = "completed"
