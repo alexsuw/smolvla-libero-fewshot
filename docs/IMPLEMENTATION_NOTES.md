@@ -127,10 +127,12 @@ pinned upstream revisions.
 - Resume may override only `log_freq`, `destination`, `stop_after`,
   `backup_dir`, and `output_dir`. Dataset revision, split, trainable scope,
   optimizer, scheduler, batch, and seed are frozen.
-- `sync_artifacts.py` default is dry-run local mirror and never deletes.
-  `prune_artifacts.py` is inventory-only even with `--execute`.
-- Object-storage upload remains TODO 20. Local second-directory copy is the
-  M5 durable-backup stand-in.
+- `sync_artifacts.py` default is dry-run and never deletes. Local directory
+  destinations keep the M5 mirror. `file://` and `s3://` destinations use the
+  object protocol: temporary prefix, size/checksum verify, remote
+  `COMPLETED.json`, local `backup_status.json`. `s3:// --execute` needs boto3
+  at runtime; dry-run does not. There is no `--delete`.
+- `scripts/verify_backup.py` re-reads `COMPLETED.json` and checksums.
 
 ## Eval protocol implementation
 
@@ -146,7 +148,23 @@ pinned upstream revisions.
   language-control rollouts can share a scene while traces diverge.
 - Failure videos are PPM frames (same encoding gate as expert replay). MP4/AV1
   waits on the M1 FFmpeg pin. Failure videos are never deleted by eval code.
-- `eval_seen` has no frozen probe-task list yet (TODO 22). Static smoke uses
-  `synthetic_seen` on `libero_90`.
+- `eval_seen` probe tasks are frozen in
+  `configs/splits/pseudo_target_splits.json` (three `libero_90` texts). Static
+  smoke still defaults to `synthetic_seen` so it cannot look like `final_v1`.
 - `--profile full` fails closed before LIBERO/SmolVLA allocation. No LeRobot
   eval CLI is called.
+
+## Object storage, predictions, calibration, reporting
+
+- Predictions are in `predictions.md` and must not be rewritten after the
+  real target grid starts.
+- Pseudo-target tasks are three `libero_90` texts from the replay gate, not
+  the held-out `libero_goal` targets. Train YAML values are checked against
+  `configs/calibration.yaml`. The selected seen-checkpoint hash stays unset
+  until probe selection (TODO 24).
+- `collect_results.py` drops `static_*` and `dev_soft_reset` rows. Cost-curve
+  figures are SVG with x ticks `{0,5,10,25}` so the CPU extra does not need
+  matplotlib. Spec PDF names remain a future optional export.
+- `make_report_tables.py --bundle` checksums markdown/tables/figures only.
+- TODOs 23–31 (paid seen-pretrain, live eval, LoRA grid) wait on M0–M5
+  hardware gates. They are not started from this CPU tree.

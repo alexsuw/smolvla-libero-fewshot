@@ -4,7 +4,7 @@ PYTHON := $(UV) run python
 .PHONY: help sync sync-data sync-gpu test validate-configs validate-revisions \
 	doctor-static doctor check-cli check-git-safety check check-m1-static \
 	verify-split verify-leakage check-m2 check-m3 check-m4 check-m5 \
-	check-eval-protocol
+	check-eval-protocol check-reporting
 
 help:
 	@echo "sync              Install the locked M0 development environment"
@@ -26,6 +26,7 @@ help:
 	@echo "check-m4          Run M3 checks plus SmolVLA feature/allowlist contracts"
 	@echo "check-m5          Run M4 checks plus checkpoint/resume smoke contracts"
 	@echo "check-eval-protocol  Run M5 checks plus fixed-seed eval protocol contracts"
+	@echo "check-reporting      Run eval-protocol checks plus object-sync and report contracts"
 
 sync:
 	$(UV) sync --frozen
@@ -104,3 +105,26 @@ check-eval-protocol:
 		--task bowl_stove --output-dir artifacts/validation/eval-protocol/language
 	$(PYTHON) scripts/eval_seen.py --config configs/eval/seen_probe.yaml \
 		--profile static --output-dir artifacts/validation/eval-protocol/seen
+
+check-reporting:
+	$(MAKE) check-eval-protocol
+	$(PYTHON) scripts/sync_artifacts.py \
+		--source tests/fixtures/sync_sample \
+		--destination "file://$(CURDIR)/artifacts/validation/object-sync/sample"
+	$(PYTHON) scripts/sync_artifacts.py --execute \
+		--source tests/fixtures/sync_sample \
+		--destination "file://$(CURDIR)/artifacts/validation/object-sync/sample" \
+		--backup-status artifacts/validation/object-sync/backup_status.json
+	$(PYTHON) scripts/verify_backup.py \
+		--object-uri "file://$(CURDIR)/artifacts/validation/object-sync/sample" \
+		--source tests/fixtures/sync_sample
+	$(PYTHON) scripts/collect_results.py \
+		--runs-root artifacts/validation/eval-protocol \
+		--output-dir artifacts/validation/reporting
+	$(PYTHON) scripts/plot_cost_curve.py \
+		--long artifacts/validation/reporting/results_long.csv \
+		--output-dir artifacts/validation/reporting/figures
+	$(PYTHON) scripts/make_report_tables.py \
+		--long artifacts/validation/reporting/results_long.csv \
+		--output-dir artifacts/validation/reporting/tables
+

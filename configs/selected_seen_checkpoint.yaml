@@ -1,0 +1,14 @@
+kind: selected_checkpoint
+schema_version: 1
+status: pending_seen_pretrain
+protocol_id: seen_probe_v1
+tolerance_success: 0.02
+fallback_step: 100000
+selection_rule: >
+  Exclude NaN or unstable checkpoints. Score only the three frozen
+  libero_90 seen-probe tasks. Take the earliest checkpoint within 0.02
+  mean success of the best probe. If noise prevents a distinction, use
+  step 100000. Never look at target-task success.
+sha256: null
+uri: null
+run_id: null

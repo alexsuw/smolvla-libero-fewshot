@@ -330,8 +330,50 @@ Deferred hardware gates:
 - AV1 failure videos through the M1 FFmpeg 7.1.1 pin;
 - 20-rollout `final_v1` cells.
 
+## Object storage, predictions, calibration, reporting (TODO 20–22, 32–35 CPU)
+
+Status: software and CPU/static acceptance complete. Live S3/`boto3` round-trip
+and paid GPU runs remain deferred.
+
+Completed:
+
+- dry-run-first object sync for `file://` and `s3://` with checksum verify,
+  `COMPLETED.json`, local `backup_status.json`, and no delete;
+- committed `predictions.md` before any target results;
+- frozen pseudo-target tasks inside `libero_90` and matching train YAMLs;
+- `collect_results` / cost-curve SVG / report tables / checksummed bundle;
+- three named failure-analysis slots without numerical claims.
+
+Acceptance commands:
+
+```bash
+uv sync --frozen --extra data
+make check-reporting
+```
+
+Local result on 2026-08-21:
+
+- pytest: 143 passed, 4 skipped;
+- CLI help validation: 29 commands passed;
+- Git safety: passed;
+- `file://` object sync execute + `verify_backup`: verified, deleted=0;
+- `collect_results` drops `static_*` rows; cost-curve SVG keeps x ticks 0/5/10/25.
+
+Local evidence:
+
+```text
+artifacts/validation/object-sync/
+artifacts/validation/reporting/
+```
+
+Deferred hardware / paid runs (TODO 23–31, 36 live S3):
+
+- 100k `libero_90` seen-pretrain and seen probes;
+- zero-shot, language control, baseline grid, LoRA on real targets;
+- verified remote backup of the final bundle to a real bucket.
+
 ## Next milestone
 
-Object-storage sync/checksum (Explicit TODO 20), then `predictions.md` and
-pseudo-target calibration. Do not start paid `libero_90` seen-pretrain until
-TODO 1–22 and M0–M5 hardware gates are done.
+Paid `libero_90` seen-pretrain (Explicit TODO 23) after a Linux CUDA VM is
+provisioned and the deferred M1/M3/M4/M5 hardware gates pass. Software TODOs
+20–22 and the CPU reporting pipeline are done. Do not tune on target success.

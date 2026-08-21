@@ -29,11 +29,20 @@ def main() -> int:
     load_target_splits(split_path)
     print(f"OK {split_path}: nested target prefixes")
 
+    from vla_fewshot.calibration import assert_frozen_calibration
+    from vla_fewshot.data.pseudo import load_pseudo_target_splits
     from vla_fewshot.env.replay import load_replay_gate
 
     gate_path = args.root / "splits" / "replay_gate.json"
     load_replay_gate(gate_path)
     print(f"OK {gate_path}: six expert-replay gate episodes")
+
+    pseudo_path = args.root / "splits" / "pseudo_target_splits.json"
+    pseudo = load_pseudo_target_splits(pseudo_path)
+    print(f"OK {pseudo_path}: frozen pseudo-target tasks {list(pseudo.slugs)}")
+
+    assert_frozen_calibration(root=args.root.parent)
+    print("OK frozen calibration matches tracked train YAMLs")
 
     seeds_path = args.root / "eval" / "final_seeds.json"
     with seeds_path.open("r", encoding="utf-8") as handle:

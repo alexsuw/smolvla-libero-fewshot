@@ -1,9 +1,22 @@
 {
   "schema_version": 1,
-  "status": "unselected_until_todo_22",
+  "status": "frozen",
   "dataset_repo_id": "nvidia/LIBERO_LeRobot_v3",
   "dataset_revision": "e5907374380b8f96511957e6ba5582be52a1e179",
   "suite": "libero_90",
-  "selection_rule": null,
-  "tasks": {}
+  "selection_rule": "Three diverse libero_90 language tasks already listed in the expert-replay gate: pick-and-place bowl, drawer-plus-bowl, and book-in-caddy. They are not the three held-out libero_goal targets. Episode prefixes follow first-N in ascending episode_index once pinned metadata is present; IDs are not invented offline. Hyperparameters are frozen from this set before any real-target grid.",
+  "tasks": {
+    "black_bowl_plate": {
+      "task_text": "put the middle black bowl on the plate",
+      "task_index": 0
+    },
+    "drawer_bowl": {
+      "task_text": "open the top drawer of the cabinet and put the bowl in it",
+      "task_index": 36
+    },
+    "book_caddy": {
+      "task_text": "pick up the book and place it in the front compartment of the caddy",
+      "task_index": 72
+    }
+  }
 }

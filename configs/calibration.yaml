@@ -1,0 +1,41 @@
+kind: calibration
+schema_version: 1
+status: frozen
+suite: libero_90
+pseudo_target_splits: configs/splits/pseudo_target_splits.json
+seen_probe_slugs:
+  - black_bowl_plate
+  - drawer_bowl
+  - book_caddy
+seen_pretrain:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-2
+  min_lr: 1.0e-5
+  warmup_steps: 1000
+seen_max_steps: 100000
+seen_effective_batch_size: 32
+target_baseline:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-2
+  min_lr: 1.0e-5
+  warmup_steps: 1000
+target_max_steps: 12000
+target_epochs: 100
+lora_r: 64
+lora_alpha: 64
+lora_dropout: 0.0
+lora_lr: 1.0e-3
+lora_min_lr: 1.0e-4
+replay_target_fraction: 0.75
+replay_seen_fraction: 0.25
+replay_seen_suite: libero_90
+eval_rollouts_per_cell: 20
+eval_seed_start: 1000
+eval_seed_end: 1019
+checkpoint_selection_rule: >
+  Exclude NaN or unstable checkpoints. Score only the three frozen
+  libero_90 seen-probe tasks. Take the earliest checkpoint within 0.02
+  mean success of the best probe. If noise prevents a distinction, use
+  step 100000. Never look at target-task success.

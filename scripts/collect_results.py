@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
-from vla_fewshot.cli import refuse_until_milestone
 from vla_fewshot.data.gates import maybe_assert_no_leakage
 from vla_fewshot.data.leakage import LeakageError
+from vla_fewshot.reporting.collect import IncompleteGridError, collect_rollouts
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -19,11 +20,28 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("configs/splits/target_splits.json"),
     )
+    parser.add_argument(
+        "--runs-root",
+        type=Path,
+        default=Path("artifacts/eval"),
+        help="Directory tree containing rollouts.jsonl files.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("report/tables"),
+        help="Where to write results_long.csv.",
+    )
+    parser.add_argument(
+        "--require-complete",
+        action="store_true",
+        help="Fail if the expected final grid is missing cells.",
+    )
     return parser
 
 
-def main() -> int:
-    args = build_parser().parse_args()
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
     try:
         maybe_assert_no_leakage(
             config_path=args.config,
@@ -34,7 +52,17 @@ def main() -> int:
     except LeakageError as error:
         print(str(error))
         return 1
-    return refuse_until_milestone("collect_results")
+    try:
+        report = collect_rollouts(
+            args.runs_root,
+            output_dir=args.output_dir,
+            allow_incomplete=not args.require_complete,
+        )
+    except IncompleteGridError as error:
+        print(str(error))
+        return 1
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0
 
 
 if __name__ == "__main__":

@@ -79,6 +79,9 @@ COMMANDS: dict[str, CommandSpec] = {
     "collect_results": CommandSpec("Validate and collect completed rollout records.", "M10"),
     "plot_cost_curve": CommandSpec("Build observed cost curves with uncertainty.", "M10"),
     "make_report_tables": CommandSpec("Build deterministic final report tables.", "M10"),
+    "verify_backup": CommandSpec(
+        "Verify a remote COMPLETED.json backup against checksums.", "M10"
+    ),
     "prune_artifacts": CommandSpec(
         "Inventory safe retention candidates; never delete by default.", "M5", ("execute",)
     ),

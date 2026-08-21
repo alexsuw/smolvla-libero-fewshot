@@ -329,6 +329,71 @@ class EvalConfig(StrictModel):
     wrong_instruction_map: dict[str, str] | None = None
 
 
+class OptimizerFreeze(StrictModel):
+    name: Literal["adamw"]
+    lr: float = Field(gt=0)
+    weight_decay: float = Field(ge=0)
+    min_lr: float = Field(ge=0)
+    warmup_steps: int = Field(ge=0)
+
+
+class CalibrationConfig(StrictModel):
+    kind: Literal["calibration"]
+    schema_version: Literal[1]
+    status: Literal["frozen"]
+    suite: Literal["libero_90"]
+    pseudo_target_splits: str
+    seen_probe_slugs: list[str] = Field(min_length=3, max_length=3)
+    seen_pretrain: OptimizerFreeze
+    seen_max_steps: int = Field(ge=1)
+    seen_effective_batch_size: int = Field(ge=1)
+    target_baseline: OptimizerFreeze
+    target_max_steps: int = Field(ge=1)
+    target_epochs: int = Field(ge=1)
+    lora_r: int = Field(ge=1)
+    lora_alpha: int = Field(ge=1)
+    lora_dropout: float = Field(ge=0, lt=1)
+    lora_lr: float = Field(gt=0)
+    lora_min_lr: float = Field(ge=0)
+    replay_target_fraction: float = Field(gt=0, le=1)
+    replay_seen_fraction: float = Field(ge=0, lt=1)
+    replay_seen_suite: Literal["libero_90"]
+    eval_rollouts_per_cell: int = Field(ge=1)
+    eval_seed_start: int
+    eval_seed_end: int
+    checkpoint_selection_rule: str = Field(min_length=20)
+
+    @model_validator(mode="after")
+    def replay_fractions_sum(self) -> "CalibrationConfig":
+        if abs(self.replay_target_fraction + self.replay_seen_fraction - 1.0) > 1e-9:
+            raise ValueError("replay fractions must sum to 1")
+        if self.eval_seed_end < self.eval_seed_start:
+            raise ValueError("eval seed range is inverted")
+        return self
+
+
+class SelectedCheckpointConfig(StrictModel):
+    kind: Literal["selected_checkpoint"]
+    schema_version: Literal[1]
+    status: Literal["pending_seen_pretrain", "frozen"]
+    protocol_id: str = Field(min_length=1)
+    tolerance_success: float = Field(ge=0, le=1)
+    fallback_step: int = Field(ge=1)
+    selection_rule: str = Field(min_length=20)
+    sha256: str | None = None
+    uri: str | None = None
+    run_id: str | None = None
+
+    @model_validator(mode="after")
+    def hash_only_when_frozen(self) -> "SelectedCheckpointConfig":
+        if self.status == "frozen":
+            if self.sha256 is None or len(self.sha256) != 64:
+                raise ValueError("frozen selected checkpoint requires a 64-char sha256")
+        elif self.sha256 is not None:
+            raise ValueError("pending selected checkpoint must not pin a sha256")
+        return self
+
+
 ConfigModel = (
     RevisionsConfig
     | StorageConfig
@@ -337,6 +402,8 @@ ConfigModel = (
     | EnvConfig
     | TrainConfig
     | EvalConfig
+    | CalibrationConfig
+    | SelectedCheckpointConfig
 )
 
 MODEL_BY_KIND: dict[str, type[StrictModel]] = {
@@ -347,6 +414,8 @@ MODEL_BY_KIND: dict[str, type[StrictModel]] = {
     "env": EnvConfig,
     "train": TrainConfig,
     "eval": EvalConfig,
+    "calibration": CalibrationConfig,
+    "selected_checkpoint": SelectedCheckpointConfig,
 }
 
 FORBIDDEN_PATH_PREFIXES = ("/content", "/mnt/vla")

@@ -7,8 +7,8 @@
 ## Текущий статус
 
 M0–M5 реализация завершена на CPU; hardware acceptance M1/M3/M4/M5 остаётся
-pending. Eval protocol (фиксированные сиды, JSONL resume, traces/video)
-реализован на toy env. Обучение SmolVLA и платные GPU-запуски до прохождения
+pending. Eval protocol, object-storage sync, `predictions.md` и pseudo-target
+freeze готовы. Обучение SmolVLA и платные GPU-запуски до прохождения
 hardware-gates запрещены.
 Актуальный прогресс и evidence перечислены в [`STATUS.md`](STATUS.md).
 
@@ -19,7 +19,7 @@ hardware-gates запрещены.
 ```bash
 uv sync --frozen --extra data
 uv run pytest -q
-make check-eval-protocol
+make check-reporting
 ```
 
 Посмотреть интерфейс команд можно без запуска GPU:

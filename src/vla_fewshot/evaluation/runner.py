@@ -130,13 +130,28 @@ def plan_eval_rollouts(
     language_control: bool,
 ) -> list[PlannedRollout]:
     seeds = seeds_for_config(config, project_root=project_root)
-    if config.stage == "seen_probe" and task_slug not in {"drawer_middle", "bowl_stove", "wine_cabinet"}:
+    if config.stage == "seen_probe" and task_slug not in {
+        "drawer_middle",
+        "bowl_stove",
+        "wine_cabinet",
+    }:
+        task_text = "pick up the synthetic block"
+        task_index = 0
+        pseudo_path = project_root / "configs" / "splits" / "pseudo_target_splits.json"
+        if task_slug != "synthetic_seen" and pseudo_path.is_file():
+            from vla_fewshot.data.pseudo import load_pseudo_target_splits
+
+            probes = load_pseudo_target_splits(pseudo_path)
+            if task_slug in probes.tasks:
+                spec = probes.tasks[task_slug]
+                task_text = spec.task_text
+                task_index = spec.task_index
         return plan_named_rollouts(
             config,
             task_slug=task_slug,
-            task_text="pick up the synthetic block",
+            task_text=task_text,
             suite=config.dataset.suite_seen,
-            task_index=0,
+            task_index=task_index,
             n_demos=n_demos,
             train_seed=train_seed,
             seeds=seeds,
