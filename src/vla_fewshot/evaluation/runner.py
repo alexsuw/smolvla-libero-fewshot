@@ -241,6 +241,12 @@ def run_static_evaluation(
         assert_zero_shot_cell(
             n_demos=n_demos, train_seed=train_seed, episode_ids=episode_ids
         )
+    if stage == "language_control":
+        from vla_fewshot.evaluation.language_control import assert_language_control_cell
+
+        assert_language_control_cell(
+            n_demos=n_demos, train_seed=train_seed, episode_ids=episode_ids
+        )
 
     for spec in planned:
         key = spec.key(digest)
@@ -455,6 +461,10 @@ def _write_language_pairs(output_dir: Path, records: list[dict[str, Any]]) -> No
     for seed, pair in sorted(by_seed.items()):
         if set(pair) != {"correct", "wrong"}:
             raise ProtocolError(f"language pair incomplete for seed {seed}")
+        if pair["correct"]["checkpoint_sha256"] != pair["wrong"]["checkpoint_sha256"]:
+            raise ProtocolError(
+                f"paired language control checkpoint hash drifted at seed {seed}"
+            )
         if pair["correct"]["initial_state_fingerprint"] != pair["wrong"]["initial_state_fingerprint"]:
             raise ProtocolError(
                 f"paired language control fingerprints drifted at seed {seed}"
@@ -465,6 +475,7 @@ def _write_language_pairs(output_dir: Path, records: list[dict[str, Any]]) -> No
             {
                 "eval_seed": seed,
                 "task_slug": pair["correct"]["task_slug"],
+                "checkpoint_sha256": pair["correct"]["checkpoint_sha256"],
                 "fingerprint": pair["correct"]["initial_state_fingerprint"],
                 "correct_success": pair["correct"]["success"],
                 "wrong_success": pair["wrong"]["success"],

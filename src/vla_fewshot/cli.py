@@ -70,7 +70,7 @@ COMMANDS: dict[str, CommandSpec] = {
         ("config", "checkpoint", "task"),
     ),
     "eval_language_control": CommandSpec(
-        "Run paired correct/wrong instruction rollouts.",
+        "Run paired correct/wrong instruction rollouts on the frozen seen checkpoint.",
         "M7",
         ("config", "checkpoint", "task"),
     ),

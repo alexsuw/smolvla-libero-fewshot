@@ -159,8 +159,11 @@ pinned upstream revisions.
   the same JSONL resume loop. Target, zero-shot, and language-control full
   eval stay refused until `configs/selected_seen_checkpoint.yaml` is frozen.
   Zero-shot (`scripts/eval_zero_shot.py`) uses that frozen hash, `n_demos=0`,
-  and an empty training episode list. `--run-dir` is refused so it cannot
-  score every seen-pretrain step. No LeRobot eval CLI is called.
+  and an empty training episode list. Language control
+  (`scripts/eval_language_control.py`) uses the same origin and seeds: paired
+  correct/wrong instructions, matching initial-state fingerprints, and matching
+  checkpoint hashes. `--run-dir` is refused for both so they cannot score every
+  seen-pretrain step. No LeRobot eval CLI is called.
   `n_action_steps` is set to the eval `action_chunk_horizon` (10). Env task
   IDs are resolved by exact language match, not dataset `task_index`.
 - Seen checkpoint selection scores only the three probe slugs, drops NaN/
@@ -186,8 +189,10 @@ pinned upstream revisions.
   still waits on a Linux CUDA VM. TODO 24 **code** is probe eval + selection;
   live probe rollouts wait on that same VM. TODO 25 (seen LoRA) is skipped.
   TODO 26 **code** is `eval_zero_shot.py` (3 tasks × ≥20, empty train list,
-  frozen seen hash). TODO 28 **code** is `train_target.py` baseline
-  (no LoRA/replay) from the frozen seen checkpoint; GPU runs wait on that freeze.
+  frozen seen hash). TODO 27 **code** is `eval_language_control.py` (paired
+  correct/wrong, same seeds/states/hash). TODO 28 **code** is `train_target.py`
+  baseline (no LoRA/replay) from the frozen seen checkpoint; GPU runs wait on
+  that freeze.
 
 ## Seen-pretrain trainer (TODO 23 code)
 

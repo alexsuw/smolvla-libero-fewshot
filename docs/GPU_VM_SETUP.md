@@ -132,8 +132,20 @@ uv run python scripts/eval_zero_shot.py \
   --output-root "$VLA_DATASETS_DIR"
 ```
 
-Seen LoRA (TODO 25) is skipped. After zero-shot, run the 18-cell baseline
-(no LoRA, no replay). Print the grid first:
+Paired language control (TODO 27). Same frozen hash, same seeds/states, only the
+instruction string changes:
+
+```bash
+uv run python scripts/eval_language_control.py --print-grid
+
+uv run python scripts/eval_language_control.py \
+  --profile full \
+  --output-dir "$VLA_RUNS_DIR/language_control" \
+  --output-root "$VLA_DATASETS_DIR"
+```
+
+Seen LoRA (TODO 25) is skipped. After zero-shot and language control, run the
+18-cell baseline (no LoRA, no replay). Print the grid first:
 
 ```bash
 uv run python scripts/train_target.py --print-grid

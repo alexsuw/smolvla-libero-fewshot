@@ -41,11 +41,15 @@ def assert_zero_shot_cell(
         raise ProtocolError("zero-shot training episode list must be empty")
 
 
-def resolve_frozen_eval_checkpoint(checkpoint: Path | None) -> tuple[Path, str]:
+def resolve_frozen_eval_checkpoint(
+    checkpoint: Path | None,
+    *,
+    purpose: str = "evaluation",
+) -> tuple[Path, str]:
     selected = load_selected_checkpoint()
     if selected.status != "frozen" or not selected.sha256 or selected.uri is None:
         raise RuntimeError(
-            "zero-shot waits until configs/selected_seen_checkpoint.yaml is "
+            f"{purpose} waits until configs/selected_seen_checkpoint.yaml is "
             "frozen from seen probes. no GPU evaluation was started."
         )
     origin = Path(checkpoint) if checkpoint is not None else Path(selected.uri)

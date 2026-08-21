@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 from typing import Mapping, Sequence
 
 from vla_fewshot.config import EvalConfig
@@ -99,3 +100,59 @@ def action_cosine_divergence(
             gap = 0.0
         total += gap
     return total / n
+
+
+LANGUAGE_CONTROL_SLUGS = tuple(TARGET_TASKS)
+MIN_ROLLOUTS = 20
+
+
+def assert_language_control_config(config: EvalConfig, *, profile: str) -> None:
+    if config.stage != "language_control":
+        raise ProtocolError(
+            "language-control evaluation requires configs/eval/language_control.yaml"
+        )
+    if not config.protocol.hard_reset:
+        raise ProtocolError("language control requires hard_reset: true")
+    wrong_instruction_map(config)
+    if profile == "full":
+        if config.protocol.protocol_id != "final_language_control_v1":
+            raise ProtocolError(
+                "language-control full eval must use protocol_id=final_language_control_v1"
+            )
+        if config.protocol.rollouts_per_cell < MIN_ROLLOUTS:
+            raise ProtocolError(
+                f"language control requires ≥{MIN_ROLLOUTS} paired seeds per task"
+            )
+
+
+def assert_language_control_cell(
+    *,
+    n_demos: int | None,
+    train_seed: int | None,
+    episode_ids: list[int],
+) -> None:
+    if n_demos not in (None, 0):
+        raise ProtocolError("language control uses 0 target demonstrations")
+    if train_seed is not None:
+        raise ProtocolError("language control has no adaptation train seed")
+    if episode_ids:
+        raise ProtocolError("language control training episode list must be empty")
+
+
+def language_control_commands(
+    *,
+    config: Path = Path("configs/eval/language_control.yaml"),
+) -> list[list[str]]:
+    return [
+        [
+            "python",
+            "scripts/eval_language_control.py",
+            "--config",
+            str(config),
+            "--task",
+            task,
+            "--profile",
+            "full",
+        ]
+        for task in LANGUAGE_CONTROL_SLUGS
+    ]

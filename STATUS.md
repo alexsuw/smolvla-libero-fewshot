@@ -465,10 +465,31 @@ uv run python scripts/eval_zero_shot.py --help
 uv run python scripts/eval_zero_shot.py --print-grid
 ```
 
+## Language control (TODO 27 code)
+
+Status: software complete on CPU. Live paired rollouts wait until the seen
+checkpoint YAML is `frozen`.
+
+Completed:
+
+- `eval_language_control.py` runs all three targets when `--task` is omitted;
+- same frozen seen hash as zero-shot; empty train episode list;
+- paired correct/wrong instructions, matching fingerprints and checkpoint hash;
+- `--run-dir` refused; Darwin / unfrozen YAML fail closed.
+
+Acceptance commands:
+
+```bash
+uv sync --frozen --extra data
+uv run pytest -q tests/unit/test_language_control_eval.py tests/integration/test_eval_resume.py
+uv run python scripts/eval_language_control.py --help
+uv run python scripts/eval_language_control.py --print-grid
+```
+
 ## Next milestone
 
 On a Linux CUDA VM: 200-step smoke, 100k `seen_expert`, then `eval_seen --run-dir`
 and `select_seen_checkpoint.py --write`. Do not tune on target success. Then
-`eval_zero_shot.py` (3×20), then the 18-cell `train_target` baseline.
-Seen LoRA is skipped. Target LoRA waits until that baseline is trained and
-evaluated. Paired language control is the next code slice after this one.
+`eval_zero_shot.py` (3×20) and `eval_language_control.py` (paired correct/wrong),
+then the 18-cell `train_target` baseline. Seen LoRA is skipped. Target LoRA
+waits until that baseline is trained and evaluated.

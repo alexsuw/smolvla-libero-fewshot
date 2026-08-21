@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import sys
@@ -82,8 +83,10 @@ def test_language_control_pairs_share_fingerprint(tmp_path: Path) -> None:
         language_control=True,
     )
     assert result.complete
-    pairs = (tmp_path / "lang" / "language_pairs.json").read_text(encoding="utf-8")
-    assert "action_l2_divergence" in pairs
+    payload = json.loads((tmp_path / "lang" / "language_pairs.json").read_text(encoding="utf-8"))
+    hashes = {row["checkpoint_sha256"] for row in payload["pairs"]}
+    assert len(hashes) == 1
+    assert all("action_l2_divergence" in row for row in payload["pairs"])
     store = RolloutStore(tmp_path / "lang" / "rollouts.jsonl")
     assert len(store) == 6
     by_seed: dict[int, set[str]] = {}
@@ -92,6 +95,9 @@ def test_language_control_pairs_share_fingerprint(tmp_path: Path) -> None:
         seed = int(record["eval_seed"])
         by_seed.setdefault(seed, set()).add(record["instruction_condition"])
         fingerprints.setdefault(seed, set()).add(record["initial_state_fingerprint"])
+        assert int(record["n_demos"]) == 0
+        assert record["training_episode_ids"] == []
+        assert record["train_seed"] is None
     assert all(value == {"correct", "wrong"} for value in by_seed.values())
     assert all(len(value) == 1 for value in fingerprints.values())
 

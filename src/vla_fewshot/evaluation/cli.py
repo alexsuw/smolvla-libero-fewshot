@@ -83,7 +83,10 @@ def _eval_tasks(kind: EvalKind, args: argparse.Namespace, config: EvalConfig) ->
         return probes
     if args.task:
         return [args.task]
-    if zero_shot:
+    if kind in {"zero_shot", "language_control"} or config.stage in {
+        "zero_shot",
+        "language_control",
+    }:
         return list(TARGET_SLUGS)
     raise SystemExit("--task is required")
 
@@ -103,11 +106,23 @@ def _run_cell(
     method: Literal["baseline", "lora", "replay_lora", "seen"]
     stage: Literal["zero_shot", "target_eval", "language_control", "seen_probe"]
     language = False
-    if kind == "zero_shot" or config.stage == "zero_shot":
+    if kind == "language_control":
+        n_demos = 0
+        train_seed = None
+        method = "seen"
+        stage = "language_control"
+        language = True
+    elif kind == "zero_shot" or config.stage == "zero_shot":
         n_demos = 0
         train_seed = None
         method = "seen"
         stage = "zero_shot"
+    elif config.stage == "language_control":
+        n_demos = 0
+        train_seed = None
+        method = "seen"
+        stage = "language_control"
+        language = True
     elif kind == "target":
         if args.n_demos is None or args.seed is None:
             raise SystemExit("--n-demos and --seed are required for target evaluation")
@@ -115,12 +130,6 @@ def _run_cell(
         train_seed = args.seed
         method = "baseline"
         stage = "target_eval"
-    elif kind == "language_control":
-        n_demos = 0
-        train_seed = None
-        method = "seen"
-        stage = "language_control"
-        language = True
     else:
         n_demos = None
         train_seed = None
@@ -188,14 +197,15 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
         description={
             "target": "Run resumable fixed-seed target rollouts.",
             "zero_shot": "Run zero-shot final eval: 3 tasks × ≥20, empty train list.",
-            "language_control": "Run paired correct/wrong instruction rollouts.",
+            "language_control": "Run paired correct/wrong instruction rollouts on the frozen seen checkpoint.",
             "seen": "Evaluate only the fixed seen probe suite.",
         }[kind]
     )
-    add_eval_arguments(
-        parser,
-        default_config=Path("configs/eval/zero_shot.yaml") if kind == "zero_shot" else None,
-    )
+    default_config = {
+        "zero_shot": Path("configs/eval/zero_shot.yaml"),
+        "language_control": Path("configs/eval/language_control.yaml"),
+    }.get(kind)
+    add_eval_arguments(parser, default_config=default_config)
     train_default = (
         Path("configs/train/target_baseline.yaml")
         if kind == "target"
@@ -211,22 +221,29 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
     if kind == "target":
         parser.add_argument("--n-demos", type=int, choices=(0, 5, 10, 25))
         parser.add_argument("--seed", type=int, choices=(42, 123))
-    if kind == "zero_shot":
+    if kind in {"zero_shot", "language_control"}:
         parser.add_argument(
             "--print-grid",
             action="store_true",
-            help="Print the 3 independent zero-shot task commands and exit.",
+            help="Print the 3 independent task commands and exit.",
         )
     args = parser.parse_args(argv)
     os.environ.setdefault("WANDB_MODE", "disabled")
     os.environ.setdefault("WANDB_DISABLED", "true")
 
-    if kind == "zero_shot" and getattr(args, "print_grid", False):
-        from vla_fewshot.evaluation.zero_shot import zero_shot_commands
+    if getattr(args, "print_grid", False):
+        if kind == "zero_shot":
+            from vla_fewshot.evaluation.zero_shot import zero_shot_commands
 
-        for command in zero_shot_commands(config=args.config):
-            print(" ".join(command))
-        return 0
+            for command in zero_shot_commands(config=args.config):
+                print(" ".join(command))
+            return 0
+        if kind == "language_control":
+            from vla_fewshot.evaluation.language_control import language_control_commands
+
+            for command in language_control_commands(config=args.config):
+                print(" ".join(command))
+            return 0
 
     if args.profile == "full":
         try:
@@ -245,28 +262,35 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
         config = static_smoke_config(config)
 
     zero_shot = kind == "zero_shot" or config.stage == "zero_shot"
-    if zero_shot:
+    language = kind == "language_control" or config.stage == "language_control"
+    frozen_origin = zero_shot or language
+    if frozen_origin:
         from vla_fewshot.evaluation.protocol import ProtocolError
-        from vla_fewshot.evaluation.zero_shot import assert_zero_shot_config
 
+        source = load_eval_config(args.config) if args.profile == "static" else config
         try:
-            assert_zero_shot_config(
-                load_eval_config(args.config) if args.profile == "static" else config,
-                profile=args.profile,
-            )
+            if kind == "language_control" or (language and not zero_shot):
+                from vla_fewshot.evaluation.language_control import (
+                    assert_language_control_config,
+                )
+
+                assert_language_control_config(source, profile=args.profile)
+            else:
+                from vla_fewshot.evaluation.zero_shot import assert_zero_shot_config
+
+                assert_zero_shot_config(source, profile=args.profile)
         except ProtocolError as error:
             print(str(error), file=sys.stderr)
             return 1
         if getattr(args, "n_demos", None) not in (None, 0):
-            parser.error("zero-shot forbids --n-demos > 0")
+            parser.error(f"{config.stage} forbids --n-demos > 0")
         if args.run_dir is not None:
             parser.error(
-                "zero-shot evaluates only the frozen seen checkpoint; do not pass --run-dir"
+                f"{config.stage} evaluates only the frozen seen checkpoint; "
+                "do not pass --run-dir"
             )
 
-    if kind == "language_control" and not args.task:
-        parser.error("--task is required")
-    if kind == "target" and not zero_shot and not args.task:
+    if kind == "target" and not frozen_origin and not args.task:
         parser.error("--task is required")
 
     try:
@@ -299,14 +323,17 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
             print(f"no complete checkpoints under {args.run_dir}", file=sys.stderr)
             return 1
         checkpoints = [(step_directory_name(step), path) for step, path in listed]
-    elif zero_shot:
+    elif frozen_origin:
         from vla_fewshot.evaluation.zero_shot import (
             assert_frozen_checkpoint_hash,
             resolve_frozen_eval_checkpoint,
         )
 
+        purpose = "language control" if language else "zero-shot"
         try:
-            origin, expected = resolve_frozen_eval_checkpoint(args.checkpoint)
+            origin, expected = resolve_frozen_eval_checkpoint(
+                args.checkpoint, purpose=purpose
+            )
             if not origin.exists():
                 raise FileNotFoundError(
                     f"frozen seen checkpoint missing: {origin}. "
