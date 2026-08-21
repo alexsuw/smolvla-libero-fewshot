@@ -383,14 +383,18 @@ class SelectedCheckpointConfig(StrictModel):
     sha256: str | None = None
     uri: str | None = None
     run_id: str | None = None
+    step: int | None = None
+    probe_mean_success: float | None = None
 
     @model_validator(mode="after")
     def hash_only_when_frozen(self) -> "SelectedCheckpointConfig":
         if self.status == "frozen":
             if self.sha256 is None or len(self.sha256) != 64:
                 raise ValueError("frozen selected checkpoint requires a 64-char sha256")
-        elif self.sha256 is not None:
-            raise ValueError("pending selected checkpoint must not pin a sha256")
+            if self.step is None:
+                raise ValueError("frozen selected checkpoint requires a step")
+        elif self.sha256 is not None or self.step is not None:
+            raise ValueError("pending selected checkpoint must not pin a sha256 or step")
         return self
 
 

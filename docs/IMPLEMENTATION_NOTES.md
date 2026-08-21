@@ -155,8 +155,18 @@ pinned upstream revisions.
 - `eval_seen` probe tasks are frozen in
   `configs/splits/pseudo_target_splits.json` (three `libero_90` texts). Static
   smoke still defaults to `synthetic_seen` so it cannot look like `final_v1`.
-- `--profile full` fails closed before LIBERO/SmolVLA allocation. No LeRobot
-  eval CLI is called.
+- `--profile full` on Linux + CUDA runs live SmolVLA/LIBERO rollouts through
+  the same JSONL resume loop. Target and language-control full eval stay
+  refused until `configs/selected_seen_checkpoint.yaml` is frozen. No LeRobot
+  eval CLI is called. `n_action_steps` is set to the eval
+  `action_chunk_horizon` (10). Env task IDs are resolved by exact language
+  match, not dataset `task_index`.
+- Seen checkpoint selection scores only the three probe slugs, drops NaN/
+  unstable rows, rejects `static_*` protocols and any target-task slug, then
+  takes the earliest checkpoint within `tolerance_success=0.02` of the best
+  mean. If every stable score is inside that band, the fallback is step
+  100000. `select_seen_checkpoint.py` is dry-run until `--write`.
+
 
 ## Object storage, predictions, calibration, reporting
 
@@ -165,14 +175,14 @@ pinned upstream revisions.
 - Pseudo-target tasks are three `libero_90` texts from the replay gate, not
   the held-out `libero_goal` targets. Train YAML values are checked against
   `configs/calibration.yaml`. The selected seen-checkpoint hash stays unset
-  until probe selection (TODO 24).
+  until `select_seen_checkpoint.py --write` on the VM.
 - `collect_results.py` drops `static_*` and `dev_soft_reset` rows. Cost-curve
   figures are SVG with x ticks `{0,5,10,25}` so the CPU extra does not need
   matplotlib. Spec PDF names remain a future optional export.
 - `make_report_tables.py --bundle` checksums markdown/tables/figures only.
 - TODO 23 **code** is the project SmolVLA trainer. The 100k GPU run itself
-  still waits on a Linux CUDA VM. Live eval (`--profile full`) stays refused
-  until TODO 24.
+  still waits on a Linux CUDA VM. TODO 24 **code** is probe eval + selection;
+  live probe rollouts wait on that same VM.
 
 ## Seen-pretrain trainer (TODO 23 code)
 

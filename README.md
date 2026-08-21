@@ -9,7 +9,9 @@
 M0–M5 реализация завершена на CPU; hardware acceptance M1/M3/M4/M5 остаётся
 pending. Eval protocol, object-storage sync, `predictions.md`, pseudo-target
 freeze и project-owned SmolVLA trainer (`train_seen.py --profile full`) готовы.
-100k seen-pretrain и live eval ждут Linux CUDA VM. `lerobot-train` не вызывается.
+Seen-probe selection/freeze (`eval_seen --profile full`, `select_seen_checkpoint.py`)
+готовы на CPU. 100k seen-pretrain и live rollouts ждут Linux CUDA VM.
+`lerobot-train` не вызывается. Target eval закрыт, пока seen checkpoint не frozen.
 Актуальный прогресс и evidence перечислены в [`STATUS.md`](STATUS.md).
 
 ## Быстрый старт для разработки

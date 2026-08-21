@@ -1,12 +1,14 @@
-"""Refuse live LIBERO/SmolVLA evaluation until hardware gates pass."""
+"""Linux CUDA runtime gate for live LIBERO/SmolVLA evaluation."""
 
 from __future__ import annotations
 
 import platform
 
+from vla_fewshot.calibration import load_selected_checkpoint
 
-def refuse_full_evaluation() -> None:
-    """Fail closed before env/policy allocation."""
+
+def require_full_evaluation_runtime() -> None:
+    """Fail closed unless Linux, the gpu extra, and CUDA are available."""
 
     host = platform.system()
     if host != "Linux":
@@ -29,7 +31,20 @@ def refuse_full_evaluation() -> None:
             "full evaluation requires CUDA; no GPU evaluation was started. "
             "Use --profile static for the CPU protocol smoke."
         )
-    raise RuntimeError(
-        "Live SmolVLA/LIBERO rollouts wait until M1/M3/M4 hardware gates pass. "
-        "no GPU evaluation was started. Use --profile static."
-    )
+
+
+def assert_seen_checkpoint_frozen() -> None:
+    """Target/language eval must not run before the seen checkpoint is frozen."""
+
+    selected = load_selected_checkpoint()
+    if selected.status != "frozen" or not selected.sha256:
+        raise RuntimeError(
+            "target evaluation waits until configs/selected_seen_checkpoint.yaml "
+            "is frozen from seen probes. no GPU evaluation was started."
+        )
+
+
+def refuse_full_evaluation() -> None:
+    """Backward-compatible alias: runtime gate only, no extra hardware-wait raise."""
+
+    require_full_evaluation_runtime()

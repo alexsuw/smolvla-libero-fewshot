@@ -201,6 +201,7 @@ def run_static_evaluation(
     language_control: bool = False,
     eval_run_id: str | None = None,
     max_new_rollouts: int | None = None,
+    execute_rollout: Any | None = None,
 ) -> EvalResult:
     os.environ["WANDB_MODE"] = "disabled"
     os.environ["WANDB_DISABLED"] = "true"
@@ -240,7 +241,7 @@ def run_static_evaluation(
         if key in store.completed_keys():
             skipped += 1
             continue
-        record, traces, frames = _rollout_once(
+        record, traces, frames = (execute_rollout or _rollout_once)(
             config=config,
             spec=spec,
             checkpoint_uri=str(checkpoint),

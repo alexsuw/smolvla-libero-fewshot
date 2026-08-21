@@ -95,3 +95,28 @@ uv run python scripts/train_seen.py \
 `--stop-after` можно использовать только как resume-allowlist override на уже
 замороженном `max_steps`; для 200-step GPU smoke берите `configs/train/smoke.yaml`.
 
+## Seen probes and checkpoint freeze (TODO 24)
+
+После seen-pretrain. Только `libero_90` probe tasks; target eval закрыт, пока YAML
+не `status: frozen`.
+
+```bash
+# All complete checkpoints × three frozen probe slugs
+uv run python scripts/eval_seen.py \
+  --config configs/eval/seen_probe.yaml \
+  --profile full \
+  --run-dir "$VLA_RUNS_DIR/seen_expert_100k" \
+  --output-dir "$VLA_RUNS_DIR/seen_probes" \
+  --output-root "$VLA_DATASETS_DIR"
+
+# Dry-run selection, then write the freeze
+uv run python scripts/select_seen_checkpoint.py \
+  --run-dir "$VLA_RUNS_DIR/seen_expert_100k" \
+  --probe-root "$VLA_RUNS_DIR/seen_probes"
+
+uv run python scripts/select_seen_checkpoint.py \
+  --run-dir "$VLA_RUNS_DIR/seen_expert_100k" \
+  --probe-root "$VLA_RUNS_DIR/seen_probes" \
+  --write
+```
+

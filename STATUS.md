@@ -366,7 +366,7 @@ artifacts/validation/object-sync/
 artifacts/validation/reporting/
 ```
 
-Deferred hardware / paid runs (TODO 23 GPU, 24–31, 36 live S3):
+Deferred hardware / paid runs (TODO 23 GPU, 24 live probes, 25–31, 36 live S3):
 
 - 100k `libero_90` seen-pretrain and seen probes;
 - zero-shot, language control, baseline grid, LoRA on real targets;
@@ -393,9 +393,32 @@ uv run pytest -q tests/unit/test_full_train_cpu.py tests/smoke/test_cli_help.py
 uv run python scripts/train_seen.py --help
 ```
 
+## Seen probes and checkpoint freeze (TODO 24 code)
+
+Status: software complete on CPU; live probe rollouts and the frozen hash wait
+on the VM. Tracked `configs/selected_seen_checkpoint.yaml` stays
+`pending_seen_pretrain`.
+
+Completed:
+
+- `eval_seen.py --profile full` runs LIBERO/SmolVLA probes (`--run-dir` covers
+  every complete checkpoint × three frozen slugs);
+- target/language full eval refuses until the seen checkpoint is frozen;
+- `select_seen_checkpoint.py` dry-run-first: earliest within 0.02 of best,
+  else step 100000; never reads target success; `--write` is idempotent;
+- static `*_v1` probe rows cannot freeze the checkpoint.
+
+Acceptance commands:
+
+```bash
+uv sync --frozen --extra data
+uv run pytest -q tests/unit/test_seen_selection.py tests/integration/test_eval_resume.py
+uv run python scripts/eval_seen.py --help
+uv run python scripts/select_seen_checkpoint.py --help
+```
+
 ## Next milestone
 
-Run 200-step `configs/train/smoke.yaml --profile full`, then 100k
-`configs/train/seen_expert.yaml` on a Linux CUDA VM after dataset videos and
-doctor. Do not tune on target success. Seen probes and checkpoint freeze are
-TODO 24.
+On a Linux CUDA VM: 200-step smoke, 100k `seen_expert`, then `eval_seen --run-dir`
+and `select_seen_checkpoint.py --write`. Do not tune on target success. Optional
+seen LoRA is TODO 25 and must not delay the baseline.

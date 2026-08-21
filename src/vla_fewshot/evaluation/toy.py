@@ -84,9 +84,17 @@ class ToyEvalPolicy:
 
 
 def fingerprint_observation(observation: dict[str, Any]) -> str:
-    payload = {
-        key: value
-        for key, value in observation.items()
-        if key not in {"instruction"}
+    """Hash initial robot state (and seed if present). Instruction is excluded."""
+
+    state = observation.get("observation.state")
+    if hasattr(state, "detach"):
+        state = state.detach().cpu().flatten().tolist()
+    elif hasattr(state, "tolist"):
+        state = state.tolist()
+    payload: dict[str, Any] = {
+        "observation.state": list(state) if state is not None else [],
     }
+    seed = observation.get("seed")
+    if isinstance(seed, int):
+        payload["seed"] = seed
     return "sha256:" + sha256_json(payload)
