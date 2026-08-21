@@ -42,8 +42,12 @@ pinned upstream revisions.
 - FFmpeg `7.1.1` is a system pin, not equivalent to
   `imageio-ffmpeg==0.6.0` (Linux bundle 7.0.2). Bootstrap does not silently
   substitute it; full doctor requires exact 7.1.1 and a real AV1 round-trip.
-- No Linux GPU was available during M1 implementation. Revision status remains
-  `resolved_m1_pending_hardware`; static doctor output cannot close M1.
+- Full doctor on the first Linux GPU VM closed M1: revision status is
+  `validated_m1`. Host needs exact FFmpeg 7.1.1 with libaom (Ubuntu 24.04 apt
+  ships 6.1.1), NVIDIA EGL userspace (`libnvidia-gl` matching the driver), and
+  membership in `video`/`render` for `/dev/dri`. The Linux `gpu` extra also
+  installs a third-party site-packages `tests` package; repository
+  `tests/__init__.py` makes local helpers win.
 
 ## M2 implementation
 
@@ -86,7 +90,8 @@ pinned upstream revisions.
   from the spec; seen env IDs are resolved by exact language match at runtime.
 - Expert replay of the six gate trajectories still requires Linux `gpu` extra,
   EGL, action parquet (`--include-actions`), and simulator success. Static CI
-  cannot close that hardware gate. M1 remains `resolved_m1_pending_hardware`.
+  cannot close that hardware gate. M1 is `validated_m1`; the M3 replay gate
+  still needs action parquet and simulator success.
 - `--save-video` writes PPM frames through the production replay path. AV1 MP4
   encoding stays on the exact FFmpeg 7.1.1 system pin from M1.
 

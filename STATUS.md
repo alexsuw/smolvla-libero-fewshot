@@ -43,9 +43,8 @@ external artifact upload was performed in M0.
 
 ## M1 — Pinned runtime and doctor
 
-Status: implementation and static validation complete; full hardware acceptance
-is consciously deferred at the user's request until the final GPU purchase.
-Revision state remains `resolved_m1_pending_hardware`, not `validated_m1`.
+Status: complete. Full doctor passed on the Linux GPU VM; revision state is
+`validated_m1`.
 
 Completed:
 
@@ -78,23 +77,33 @@ artifacts/validation/M1/environment.txt
 artifacts/validation/M1/doctor-static-*/
 ```
 
-Deferred hardware gates:
+Hardware result on 2026-08-21 (Linux GPU VM):
 
-- install `gpu` extra on Linux;
-- verify NVIDIA driver `>=570.86.10`, CUDA architecture and BF16;
-- render MuJoCo/LIBERO through EGL;
-- reset/step with two cameras and 8D state;
-- verify exact system FFmpeg 7.1.1 AV1;
-- verify persistent SSD or mounted Google Drive.
+- `uv sync --frozen --extra gpu`: passed, Python 3.12.8, `torch==2.11.0+cu128`;
+- GPU: NVIDIA RTX PRO 6000 Blackwell Server Edition, driver `580.173.02`,
+  CUDA 12.8, `sm_120`, BF16 supported, ~97 GB VRAM;
+- MuJoCo EGL render 32×32×3; LIBERO `libero_goal` two-camera 256² + 8D state;
+- system FFmpeg `7.1.1` with libaom AV1 round-trip;
+- durable storage `/mnt/vla` (not ephemeral), >50 GB reserve;
+- `VLA_RUN_GPU_TESTS=1 VLA_RUN_STORAGE_TESTS=1 pytest -m "gpu or integration"`:
+  2 passed, 1 skipped (live HF metadata).
 
-These checks must pass before revision status changes to `validated_m1` and
-before any training. Static CI can never close this gate.
+Persistent evidence:
+
+```text
+/mnt/vla/bootstrap/20260821T233035Z/
+/mnt/vla/doctor/20260821T233435Z/   # required checks passed, status still pending
+/mnt/vla/doctor/20260821T233720Z/   # acceptance_complete=true after validated_m1
+```
+
+Host setup that was missing on the stock CUDA image: FFmpeg 7.1.1+libaom,
+`libnvidia-gl-580` EGL ICD, and `video`/`render` group access to `/dev/dri`.
 
 ## M2 — Dataset inspection and exact split
 
 Status: implementation complete on CPU. Unit contracts do not require a GPU.
 Live Hugging Face metadata download is optional evidence and is not a paid
-hardware gate. M1 revision status stays `resolved_m1_pending_hardware`.
+hardware gate. M1 is `validated_m1`; M2 itself does not require a GPU.
 
 Completed:
 
@@ -135,14 +144,13 @@ artifacts/validation/M2/verify-leakage.json
 artifacts/validation/M2/acceptance.log
 ```
 
-M1 revision status is unchanged: `resolved_m1_pending_hardware`. No training,
-simulator replay, model load or GPU allocation is part of M2.
+No training, simulator replay, model load or GPU allocation is part of M2.
 
 ## M3 — Environment adapters and expert replay
 
 Status: implementation and CPU/unit acceptance complete; live simulator replay
-of the six gate trajectories is deferred until Linux EGL/`gpu` extra is
-available. M1 revision status stays `resolved_m1_pending_hardware`.
+of the six gate trajectories is deferred until action parquet and simulator
+success are collected on this host. M1 is `validated_m1`.
 
 Completed:
 
@@ -192,8 +200,8 @@ training. Static CI cannot close this gate.
 ## M4 — SmolVLA inference and trainable scope
 
 Status: implementation and CPU/static acceptance complete; live weight load and
-env-accepted action remain deferred until Linux CUDA/`gpu` extra is available.
-M1 revision status stays `resolved_m1_pending_hardware`.
+env-accepted action remain deferred until the full SmolVLA smoke on this host.
+M1 is `validated_m1`.
 
 Completed:
 
@@ -239,9 +247,8 @@ These must pass before M5 training. Static CI cannot close this gate.
 ## M5 — Training/checkpoint/resume smoke
 
 Status: implementation and CPU/static acceptance complete; live SmolVLA
-200-step training remains deferred until Linux CUDA/`gpu` extra is available
-and M1/M3/M4 hardware gates pass. M1 revision status stays
-`resolved_m1_pending_hardware`.
+200-step training remains deferred until M3/M4 hardware gates and dataset
+videos are in place. M1 is `validated_m1`.
 
 Completed:
 
