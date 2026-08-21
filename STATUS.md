@@ -287,8 +287,51 @@ Deferred hardware gates:
 These must pass before paid long seen-pretrain (M6). Static CI cannot close
 the SmolVLA training gate.
 
+## Eval protocol — fixed-seed rollouts (TODO 19)
+
+Status: implementation and CPU/static acceptance complete; live LIBERO/SmolVLA
+rollouts remain deferred until Linux CUDA/`gpu` extra is available and
+M1/M3/M4 hardware gates pass.
+
+Completed:
+
+- unique rollout key, JSONL resume, and conflicting-duplicate refusal;
+- Wilson 95% CI helper;
+- traces for every rollout; failure videos always, first success per cell;
+- paired language-control fingerprints and action divergence;
+- `eval_target` / `eval_seen` / `eval_language_control` with `--profile static`.
+
+Acceptance commands:
+
+```bash
+uv sync --frozen --extra data
+make check-eval-protocol
+```
+
+Local result on 2026-08-21:
+
+- `make check-eval-protocol`: passed on CPU;
+- CLI help validation: 28 commands passed;
+- Git safety: passed;
+- pytest: 129 passed, 4 skipped without GPU/storage/live-HF env vars;
+- `--profile full` fails before GPU allocation.
+
+Local evidence:
+
+```text
+artifacts/validation/eval-protocol/target/
+artifacts/validation/eval-protocol/language/
+artifacts/validation/eval-protocol/seen/
+```
+
+Deferred hardware gates:
+
+- live LIBERO hard-reset rollouts with pinned SmolVLA;
+- AV1 failure videos through the M1 FFmpeg 7.1.1 pin;
+- 20-rollout `final_v1` cells.
+
 ## Next milestone
 
-Eval protocol (Explicit TODO 19): fixed-seed rollouts, JSONL resume, traces
-and failure videos. Do not start paid `libero_90` seen-pretrain until M0–M5
-hardware gates and the remaining pre-train TODOs are done.
+Object-storage sync/checksum (Explicit TODO 20), then `predictions.md` and
+pseudo-target calibration. Do not start paid `libero_90` seen-pretrain until
+TODO 1–22 and M0–M5 hardware gates are done.

@@ -6,9 +6,10 @@
 
 ## Текущий статус
 
-M0–M4 реализация завершена; hardware acceptance M1/M3/M4 остаётся pending.
-M5 (checkpoint/resume smoke) реализован на CPU. Обучение SmolVLA и платные
-GPU-запуски до прохождения hardware-gates M1–M5 запрещены.
+M0–M5 реализация завершена на CPU; hardware acceptance M1/M3/M4/M5 остаётся
+pending. Eval protocol (фиксированные сиды, JSONL resume, traces/video)
+реализован на toy env. Обучение SmolVLA и платные GPU-запуски до прохождения
+hardware-gates запрещены.
 Актуальный прогресс и evidence перечислены в [`STATUS.md`](STATUS.md).
 
 ## Быстрый старт для разработки
@@ -18,7 +19,7 @@ GPU-запуски до прохождения hardware-gates M1–M5 запре
 ```bash
 uv sync --frozen --extra data
 uv run pytest -q
-make check-m5
+make check-eval-protocol
 ```
 
 Посмотреть интерфейс команд можно без запуска GPU:

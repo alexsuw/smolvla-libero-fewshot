@@ -131,3 +131,22 @@ pinned upstream revisions.
   `prune_artifacts.py` is inventory-only even with `--execute`.
 - Object-storage upload remains TODO 20. Local second-directory copy is the
   M5 durable-backup stand-in.
+
+## Eval protocol implementation
+
+- Evaluation is separate from training. `rollouts.jsonl` is append-only with
+  the spec unique key; identical keys are skipped, conflicting outcomes fail
+  closed. Incomplete runs resume by executing only missing keys.
+- `--profile static` uses a toy env/policy so the protocol can be proven on
+  CPU. Records are tagged `static_eval_v1` /
+  `static_language_control_v1` / `static_seen_probe_v1` and must not enter
+  final tables. Horizon and rollout count are shrunk only in that smoke
+  overlay; tracked `final_v1` configs stay 20×300.
+- Initial-state fingerprints exclude the instruction string so paired
+  language-control rollouts can share a scene while traces diverge.
+- Failure videos are PPM frames (same encoding gate as expert replay). MP4/AV1
+  waits on the M1 FFmpeg pin. Failure videos are never deleted by eval code.
+- `eval_seen` has no frozen probe-task list yet (TODO 22). Static smoke uses
+  `synthetic_seen` on `libero_90`.
+- `--profile full` fails closed before LIBERO/SmolVLA allocation. No LeRobot
+  eval CLI is called.

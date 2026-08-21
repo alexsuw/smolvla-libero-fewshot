@@ -3,7 +3,8 @@ PYTHON := $(UV) run python
 
 .PHONY: help sync sync-data sync-gpu test validate-configs validate-revisions \
 	doctor-static doctor check-cli check-git-safety check check-m1-static \
-	verify-split verify-leakage check-m2 check-m3 check-m4 check-m5
+	verify-split verify-leakage check-m2 check-m3 check-m4 check-m5 \
+	check-eval-protocol
 
 help:
 	@echo "sync              Install the locked M0 development environment"
@@ -24,6 +25,7 @@ help:
 	@echo "check-m3          Run M2 checks plus env/gripper/parity unit contracts"
 	@echo "check-m4          Run M3 checks plus SmolVLA feature/allowlist contracts"
 	@echo "check-m5          Run M4 checks plus checkpoint/resume smoke contracts"
+	@echo "check-eval-protocol  Run M5 checks plus fixed-seed eval protocol contracts"
 
 sync:
 	$(UV) sync --frozen
@@ -91,3 +93,14 @@ check-m5:
 	$(PYTHON) scripts/build_registry.py \
 		--runs-root artifacts/validation/M5 \
 		--output artifacts/validation/M5/registry.csv
+
+check-eval-protocol:
+	$(MAKE) check-m5
+	$(PYTHON) scripts/eval_target.py --config configs/eval/final.yaml \
+		--profile static --task bowl_stove --n-demos 5 --seed 42 \
+		--output-dir artifacts/validation/eval-protocol/target
+	$(PYTHON) scripts/eval_language_control.py \
+		--config configs/eval/language_control.yaml --profile static \
+		--task bowl_stove --output-dir artifacts/validation/eval-protocol/language
+	$(PYTHON) scripts/eval_seen.py --config configs/eval/seen_probe.yaml \
+		--profile static --output-dir artifacts/validation/eval-protocol/seen
