@@ -19,7 +19,7 @@ def test_universal_lock_contains_every_exact_runtime_pin() -> None:
     assert failures == []
 
 
-def test_offline_revision_validation_does_not_claim_hardware_acceptance() -> None:
+def test_offline_revision_validation_reports_validated_m1_status() -> None:
     report = validate_revisions(
         revisions=_revisions(),
         lock_path=ROOT / "uv.lock",
@@ -27,4 +27,4 @@ def test_offline_revision_validation_does_not_claim_hardware_acceptance() -> Non
         check_remote=False,
     )
     assert report["acceptance_complete"]
-    assert report["revision_status"] == "resolved_m1_pending_hardware"
+    assert report["revision_status"] == "validated_m1"
