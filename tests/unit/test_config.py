@@ -52,3 +52,12 @@ def test_env_config_freezes_relative_control_and_identity_transform() -> None:
     assert config.orientation.project_transform == "identity"
     assert config.cameras["wrist"].env_raw_key == "image2"
     assert config.cameras["wrist"].policy_key == "observation.images.wrist_image"
+
+
+def test_smoke_train_config_has_strict_seen_pretrain_scope() -> None:
+    config = load_config(ROOT / "configs" / "train" / "smoke.yaml")
+    assert config.kind == "train"
+    assert config.action.dim == 7
+    assert config.trainable_scope.strict_allowlist is True
+    assert config.trainable_scope.freeze_vlm_backbone is True
+    assert config.trainable_scope.train_action_expert is True

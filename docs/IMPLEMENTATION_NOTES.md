@@ -89,3 +89,23 @@ pinned upstream revisions.
   cannot close that hardware gate. M1 remains `resolved_m1_pending_hardware`.
 - `--save-video` writes PPM frames through the production replay path. AV1 MP4
   encoding stays on the exact FFmpeg 7.1.1 system pin from M1.
+
+## M4 implementation
+
+- Pinned hub checkpoint `lerobot/smolvla_base@c83c3163…` ships SO100 features
+  (typically 3 cameras and 6D action). The loader overlays LIBERO
+  `observation.images.image`, `observation.images.wrist_image`, 8D state and 7D
+  action after load. Leftover hub camera keys are a fatal error.
+- Architecture still uses `max_state_dim=32` and `max_action_dim=32`; the 7D
+  LIBERO action is the unpadded prefix. The extra pretrained channels are not
+  a substitute for LIBERO finetuning.
+- LeRobot SmolVLAConfig flags are `freeze_vision_encoder`, `train_expert_only`
+  (maps from project `freeze_vlm_backbone`), and `train_state_proj`. There is
+  no upstream `train_action_expert` / `train_action_projections` flag; those
+  are applied by the project allowlist after load.
+- `assert_module_trainable_scope` must run before optimizer creation. Unknown
+  or VLM parameters with `requires_grad=True` fail closed. Unused `lm_head`
+  weights stay frozen.
+- Static smoke (`--profile static`) never downloads weights. Full smoke needs
+  Linux `gpu` extra and CUDA; identity MEAN_STD stats are smoke-only and must
+  not be used for training.

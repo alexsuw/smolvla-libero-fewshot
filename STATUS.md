@@ -189,7 +189,55 @@ Deferred hardware gates:
 These must succeed with simulator `success=1` and saved traces/videos before
 training. Static CI cannot close this gate.
 
+## M4 — SmolVLA inference and trainable scope
+
+Status: implementation and CPU/static acceptance complete; live weight load and
+env-accepted action remain deferred until Linux CUDA/`gpu` extra is available.
+M1 revision status stays `resolved_m1_pending_hardware`.
+
+Completed:
+
+- pinned SmolVLA loader with explicit LIBERO 2-camera / 8D / 7D feature overlay;
+- fail-closed trainable allowlist mapped onto LeRobot freeze flags;
+- `trainable_parameters.txt` writer used before any optimizer creation;
+- static smoke CLI that never downloads weights.
+
+Acceptance commands:
+
+```bash
+uv sync --frozen --extra data
+make check-m4
+```
+
+Local result on 2026-08-21:
+
+- `make check-m4`: passed on CPU;
+- CLI help validation: 28 commands passed;
+- Git safety: passed;
+- pytest: 102 passed, 4 skipped without GPU/storage/live-HF env vars;
+- LIBERO feature contract rejects hub SO100 cameras and 6D actions;
+- seen-pretrain allowlist trains action expert + state/action projections only;
+- unintended VLM `requires_grad` fails closed;
+- static smoke `acceptance_complete=false` by design.
+
+Local evidence:
+
+```text
+artifacts/validation/M4/smoke_inference.json
+artifacts/validation/M4/smoke_inference.md
+artifacts/validation/M4/acceptance.log
+```
+
+Deferred hardware gates:
+
+- `uv sync --frozen --extra gpu` on Linux with CUDA;
+- `python scripts/smoke_inference.py --config configs/train/smoke.yaml --profile full`;
+- optional `--with-env` to prove `env.step` accepts the converted 7D action.
+
+These must pass before M5 training. Static CI cannot close this gate.
+
 ## Next milestone
 
-M4 — SmolVLA inference and trainable scope. Still no paid GPU until M1/M3
-hardware gates and later smoke training are ready.
+M5 — Training/checkpoint/resume smoke (200 steps, exact resume). Still no paid
+long VM run until M0–M5 gates, including the deferred M1/M3/M4 hardware checks,
+are complete.

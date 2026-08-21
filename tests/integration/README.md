@@ -25,3 +25,11 @@ uv run python scripts/check_observation_parity.py --with-env \
 uv run python scripts/replay_expert.py --all-gate --save-video \
   --output-dir artifacts/validation/M3/replay
 ```
+
+M4 pinned SmolVLA load (Linux GPU VM, after `uv sync --frozen --extra gpu`):
+
+```bash
+export VLA_RUN_GPU_TESTS=1
+uv run python scripts/smoke_inference.py --config configs/train/smoke.yaml \
+  --profile full --output-dir artifacts/validation/M4/full
+```

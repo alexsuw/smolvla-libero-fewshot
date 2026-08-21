@@ -3,7 +3,7 @@ PYTHON := $(UV) run python
 
 .PHONY: help sync sync-data sync-gpu test validate-configs validate-revisions \
 	doctor-static doctor check-cli check-git-safety check check-m1-static \
-	verify-split verify-leakage check-m2 check-m3
+	verify-split verify-leakage check-m2 check-m3 check-m4
 
 help:
 	@echo "sync              Install the locked M0 development environment"
@@ -22,6 +22,7 @@ help:
 	@echo "verify-leakage    Fail if any target text appears in libero_90"
 	@echo "check-m2          Run M0/M1 static checks plus M2 unit contracts"
 	@echo "check-m3          Run M2 checks plus env/gripper/parity unit contracts"
+	@echo "check-m4          Run M3 checks plus SmolVLA feature/allowlist contracts"
 
 sync:
 	$(UV) sync --frozen
@@ -73,3 +74,8 @@ check-m3:
 	$(MAKE) check-m2
 	$(PYTHON) scripts/check_observation_parity.py \
 		--output-dir artifacts/validation/M3/parity
+
+check-m4:
+	$(MAKE) check-m3
+	$(PYTHON) scripts/smoke_inference.py --config configs/train/smoke.yaml \
+		--profile static --output-dir artifacts/validation/M4
