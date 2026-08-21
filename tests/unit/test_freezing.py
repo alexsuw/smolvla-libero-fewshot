@@ -93,6 +93,67 @@ def test_missing_action_expert_is_too_narrow() -> None:
         assert_trainable_allowlist(records, SEEN_SCOPE)
 
 
+def test_lora_adapters_are_classified_before_expert() -> None:
+    assert (
+        classify_parameter(
+            "model.vlm_with_expert.lm_expert.layers.0.self_attn.q_proj.lora_A.default.weight"
+        )
+        == "lora"
+    )
+    assert (
+        classify_parameter(
+            "model.vlm_with_expert.lm_expert.layers.0.self_attn.q_proj.base_layer.weight"
+        )
+        == "action_expert"
+    )
+
+
+def test_target_lora_allowlist_trains_adapters_and_projections() -> None:
+    scope = TrainableScope(
+        freeze_vision_encoder=True,
+        freeze_vlm_backbone=True,
+        train_action_expert=False,
+        train_state_projection=True,
+        train_action_projections=True,
+        strict_allowlist=True,
+    )
+    names = [
+        "model.vlm_with_expert.vlm.model.vision_model.embeddings.weight",
+        "model.vlm_with_expert.vlm.model.text_model.layers.0.self_attn.q_proj.weight",
+        "model.vlm_with_expert.lm_expert.layers.0.self_attn.q_proj.base_layer.weight",
+        "model.vlm_with_expert.lm_expert.layers.0.self_attn.q_proj.lora_A.default.weight",
+        "model.vlm_with_expert.lm_expert.layers.0.self_attn.q_proj.lora_B.default.weight",
+        "model.vlm_with_expert.lm_expert.lm_head.weight",
+        "model.state_proj.weight",
+        "model.action_in_proj.weight",
+        "model.action_out_proj.weight",
+        "model.action_time_mlp_in.weight",
+        "model.action_time_mlp_out.weight",
+    ]
+    records = [ParameterRecord(name=name, requires_grad=True, numel=8) for name in names]
+    applied = apply_scope_to_records(records, scope, peft_enabled=True)
+    report = assert_trainable_allowlist(applied, scope, peft_enabled=True)
+    trainable = set(report["trainable_names"])
+    assert "model.vlm_with_expert.lm_expert.layers.0.self_attn.q_proj.lora_A.default.weight" in trainable
+    assert "model.state_proj.weight" in trainable
+    assert "model.vlm_with_expert.lm_expert.layers.0.self_attn.q_proj.base_layer.weight" not in trainable
+    assert "model.vlm_with_expert.vlm.model.text_model.layers.0.self_attn.q_proj.weight" not in trainable
+
+
+def test_target_lora_without_adapters_is_too_narrow() -> None:
+    scope = TrainableScope(
+        freeze_vision_encoder=True,
+        freeze_vlm_backbone=True,
+        train_action_expert=False,
+        train_state_projection=True,
+        train_action_projections=True,
+        strict_allowlist=True,
+    )
+    applied = apply_scope_to_records(_fake_smolvla_records(), scope, peft_enabled=True)
+    with pytest.raises(AllowlistError, match="lora"):
+        assert_trainable_allowlist(applied, scope, peft_enabled=True)
+
+
 def test_trainable_parameters_file_is_written(tmp_path: Path) -> None:
     applied = apply_scope_to_records(_fake_smolvla_records(), SEEN_SCOPE)
     assert_trainable_allowlist(applied, SEEN_SCOPE, output_dir=tmp_path)

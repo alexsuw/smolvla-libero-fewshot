@@ -128,7 +128,10 @@ def _run_cell(
             raise SystemExit("--n-demos and --seed are required for target evaluation")
         n_demos = args.n_demos
         train_seed = args.seed
-        method = "baseline"
+        train = _load_train_config(args.train_config)
+        if train.method not in {"baseline", "lora"}:
+            raise SystemExit("target eval --train-config must be baseline or lora")
+        method = train.method
         stage = "target_eval"
     else:
         n_demos = None
@@ -183,6 +186,7 @@ def _live_adapter(args: argparse.Namespace, config: EvalConfig, checkpoint: Path
         scope=train.trainable_scope,
         stats=stats,
         action_chunk_horizon=config.protocol.action_chunk_horizon,
+        train=train,
     )
     return LiveRolloutAdapter(
         policy=loaded["policy"],
@@ -246,9 +250,11 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
                 print(" ".join(command))
             return 0
         if kind == "target":
-            from vla_fewshot.evaluation.baseline_eval import baseline_eval_commands
+            from vla_fewshot.evaluation.baseline_eval import target_eval_commands
 
-            for command in baseline_eval_commands(config=args.config):
+            for command in target_eval_commands(
+                config=args.config, train_config=args.train_config
+            ):
                 print(" ".join(command))
             return 0
 

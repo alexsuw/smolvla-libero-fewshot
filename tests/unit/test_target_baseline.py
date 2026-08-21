@@ -113,14 +113,14 @@ def test_print_grid_lists_eighteen_commands() -> None:
     assert "--task drawer_middle --n-demos 5 --seed 42" in lines[0]
 
 
-def test_train_target_refuses_lora_and_unfrozen_seen(tmp_path: Path) -> None:
+def test_train_target_refuses_unfrozen_seen_and_replay_lora(tmp_path: Path) -> None:
     env = os.environ.copy()
-    lora = subprocess.run(
+    replay = subprocess.run(
         [
             sys.executable,
             str(ROOT / "scripts" / "train_target.py"),
             "--config",
-            str(ROOT / "configs" / "train" / "target_lora.yaml"),
+            str(ROOT / "configs" / "train" / "target_replay_lora.yaml"),
             "--task",
             "drawer_middle",
             "--n-demos",
@@ -128,7 +128,7 @@ def test_train_target_refuses_lora_and_unfrozen_seen(tmp_path: Path) -> None:
             "--seed",
             "42",
             "--output-dir",
-            str(tmp_path / "lora"),
+            str(tmp_path / "replay"),
         ],
         cwd=ROOT,
         capture_output=True,
@@ -137,9 +137,9 @@ def test_train_target_refuses_lora_and_unfrozen_seen(tmp_path: Path) -> None:
         timeout=20,
         env=env,
     )
-    assert lora.returncode == 1
-    assert "no GPU training was started" in lora.stdout + lora.stderr
-    assert "LoRA" in lora.stdout + lora.stderr
+    assert replay.returncode == 1
+    assert "no GPU training was started" in replay.stdout + replay.stderr
+    assert "Replay-LoRA" in replay.stdout + replay.stderr
 
     baseline = subprocess.run(
         [

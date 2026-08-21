@@ -10,7 +10,7 @@ from typing import Any
 
 from vla_fewshot.config import TrainConfig
 from vla_fewshot.reproducibility import atomic_write_json, atomic_write_text
-from vla_fewshot.storage.checksums import file_checksums, sha256_file, verify_file_checksums
+from vla_fewshot.model.peft import maybe_save_adapter_sidecar
 from vla_fewshot.storage.layout import (
     CHECKPOINT_CHECKSUMS_NAME,
     CHECKPOINT_COMPLETED_NAME,
@@ -97,6 +97,7 @@ def save_torch_checkpoint(
     tmp_dir.mkdir(parents=True, exist_ok=False)
     try:
         _atomic_torch_save(tmp_dir / CHECKPOINT_WEIGHTS_PT_NAME, policy.state_dict())
+        maybe_save_adapter_sidecar(tmp_dir, policy=policy, peft=config.peft)
         _atomic_torch_save(tmp_dir / CHECKPOINT_OPTIMIZER_PT_NAME, optimizer.state_dict())
         rng_payload: dict[str, Any] = {
             "torch_cpu": torch.get_rng_state(),
@@ -126,16 +127,18 @@ def save_torch_checkpoint(
             {"schema_version": 1, "files": hashed},
         )
         verify_file_checksums(tmp_dir, hashed)
+        completed = {
+            "schema_version": 1,
+            "created_at_utc": datetime.now(UTC).isoformat(),
+            "global_step": train_state["global_step"],
+            "checkpoint_format_version": CHECKPOINT_FORMAT_VERSION,
+            "format": "torch",
+            "weights_sha256": sha256_file(tmp_dir / CHECKPOINT_WEIGHTS_PT_NAME),
+            "peft_merged": False if config.peft is not None else None,
+        }
         atomic_write_json(
             tmp_dir / CHECKPOINT_COMPLETED_NAME,
-            {
-                "schema_version": 1,
-                "created_at_utc": datetime.now(UTC).isoformat(),
-                "global_step": train_state["global_step"],
-                "checkpoint_format_version": CHECKPOINT_FORMAT_VERSION,
-                "format": "torch",
-                "weights_sha256": sha256_file(tmp_dir / CHECKPOINT_WEIGHTS_PT_NAME),
-            },
+            {key: value for key, value in completed.items() if value is not None},
         )
         _fsync_directory(tmp_dir)
         os.replace(tmp_dir, final_dir)

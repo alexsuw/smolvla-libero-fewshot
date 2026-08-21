@@ -1,7 +1,7 @@
-"""Naive target-only continuation from the frozen seen checkpoint.
+"""Target-only continuation from the frozen seen checkpoint.
 
-No LoRA, no seen replay, no target-success early stopping. Grid:
-3 tasks × {5,10,25} × seeds {42,123}.
+Baseline: no LoRA, no replay. LoRA ablation: same origin/episodes, PEFT wrap,
+no replay. Grid: 3 tasks × {5,10,25} × seeds {42,123}.
 """
 
 from __future__ import annotations
@@ -21,8 +21,6 @@ from vla_fewshot.training.baseline import (
     TARGET_SLUGS,
     TRAIN_SEEDS,
     apply_cell_overrides,
-    assert_baseline_train_config,
-    baseline_command,
     baseline_grid,
     build_target_run_id,
     episode_ids_for_cell,
@@ -31,6 +29,7 @@ from vla_fewshot.training.baseline import (
 from vla_fewshot.training.full import require_full_training_runtime
 from vla_fewshot.training.full_loop import prepare_full_training, run_full_training
 from vla_fewshot.training.resume import assert_override_allowlist
+from vla_fewshot.training.target_lora import assert_target_train_config, target_train_command
 from vla_fewshot.training.trainer import TrainError
 
 
@@ -72,7 +71,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--print-grid",
         action="store_true",
-        help="Print the 18 independent baseline commands and exit.",
+        help="Print the 18 independent target commands and exit.",
     )
     return parser
 
@@ -116,7 +115,13 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.print_grid:
         for task, n_demos, seed in baseline_grid():
-            print(" ".join(baseline_command(task=task, n_demos=n_demos, seed=seed, config=args.config)))
+            print(
+                " ".join(
+                    target_train_command(
+                        task=task, n_demos=n_demos, seed=seed, config=args.config
+                    )
+                )
+            )
         return 0
 
     if args.task is None or args.n_demos is None or args.seed is None:
@@ -124,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.profile == "static":
         print(
-            "target baseline has no CPU static trainer; use --profile full on "
+            "target training has no CPU static trainer; use --profile full on "
             "Linux CUDA after the seen checkpoint is frozen. "
             "no GPU training was started.",
             file=sys.stderr,
@@ -133,7 +138,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         config = _load_train_config(args.config)
-        assert_baseline_train_config(config)
+        assert_target_train_config(config)
         config = apply_cell_overrides(config, seed=args.seed)
         origin, origin_sha256, _run_id = require_frozen_seen_origin(
             checkpoint=args.seen_checkpoint

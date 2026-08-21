@@ -430,8 +430,8 @@ Completed:
   `min(100 epochs, 12000 steps)`, final checkpoint always saved;
 - `--print-grid` lists the 18 independent cells;
 - `eval_target.py --run-dir` evaluates every complete baseline checkpoint;
-- Darwin / unfrozen YAML / LoRA configs fail closed with
-  `no GPU training was started`.
+- Darwin / unfrozen YAML / Replay-LoRA configs fail closed with
+  `no GPU training was started`. Target LoRA uses `--config target_lora.yaml`.
 
 Acceptance commands:
 
@@ -508,11 +508,33 @@ uv run python scripts/eval_target.py --print-grid
 uv run python scripts/verify_baseline_eval.py --help
 ```
 
+## Target LoRA ablation (TODO 30 code)
+
+Status: software complete on CPU. Live GPU cells wait on the VM after freeze
+and the 18-cell baseline.
+
+Completed:
+
+- `train_target.py --config configs/train/target_lora.yaml` wraps PEFT LoRA
+  after the frozen seen `weights.pt` load and before the allowlist/optimizer;
+- same nested episode IDs, seeds, and step cap as baseline; no replay;
+- adapter sidecar is merged-free; eval loads with `--train-config`;
+- Replay-LoRA configs still fail closed.
+
+Acceptance commands:
+
+```bash
+uv sync --frozen --extra data
+uv run pytest -q tests/unit/test_target_lora.py tests/unit/test_freezing.py tests/unit/test_target_baseline.py
+uv run python scripts/train_target.py --config configs/train/target_lora.yaml --print-grid
+uv run python scripts/eval_target.py --train-config configs/train/target_lora.yaml --print-grid
+```
+
 ## Next milestone
 
 On a Linux CUDA VM: 200-step smoke, 100k `seen_expert`, then `eval_seen --run-dir`
 and `select_seen_checkpoint.py --write`. Do not tune on target success. Then
 `eval_zero_shot.py` (3×20) and `eval_language_control.py` (paired correct/wrong),
 then the 18-cell `train_target` baseline and `eval_target --run-dir` with
-`verify_baseline_eval.py`. Seen LoRA is skipped. Target LoRA (TODO 30) waits
-until that baseline is trained and evaluated.
+`verify_baseline_eval.py`. Seen LoRA is skipped. Target LoRA GPU cells use the
+same origin after that baseline exists. Replay-LoRA (TODO 31) is next in code.

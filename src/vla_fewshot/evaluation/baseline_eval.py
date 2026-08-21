@@ -31,8 +31,9 @@ def baseline_eval_command(
     run_dir: str = "RUN_DIR",
     output_dir: str = "EVAL_DIR",
     config: Path = Path("configs/eval/final.yaml"),
+    train_config: Path = Path("configs/train/target_baseline.yaml"),
 ) -> list[str]:
-    return [
+    command = [
         "python",
         "scripts/eval_target.py",
         "--config",
@@ -50,14 +51,32 @@ def baseline_eval_command(
         "--output-dir",
         output_dir,
     ]
+    if Path(train_config) != Path("configs/train/target_baseline.yaml"):
+        command.extend(["--train-config", str(train_config)])
+    return command
 
 
 def baseline_eval_commands(
     *,
     config: Path = Path("configs/eval/final.yaml"),
+    train_config: Path = Path("configs/train/target_baseline.yaml"),
+) -> list[list[str]]:
+    return target_eval_commands(config=config, train_config=train_config)
+
+
+def target_eval_commands(
+    *,
+    config: Path = Path("configs/eval/final.yaml"),
+    train_config: Path = Path("configs/train/target_baseline.yaml"),
 ) -> list[list[str]]:
     return [
-        baseline_eval_command(task=task, n_demos=n_demos, seed=seed, config=config)
+        baseline_eval_command(
+            task=task,
+            n_demos=n_demos,
+            seed=seed,
+            config=config,
+            train_config=train_config,
+        )
         for task, n_demos, seed in baseline_grid()
     ]
 
@@ -84,6 +103,7 @@ def check_baseline_eval_records(
     train_seed: int,
     episode_ids: list[int],
     min_rollouts: int = MIN_ROLLOUTS,
+    method: str = "baseline",
 ) -> dict[str, Any]:
     if not records:
         raise BaselineEvalError(
@@ -107,8 +127,8 @@ def check_baseline_eval_records(
             raise BaselineEvalError(
                 f"baseline eval requires protocol_id={FINAL_PROTOCOL}"
             )
-        if record.get("method") != "baseline":
-            raise BaselineEvalError("baseline eval records must have method=baseline")
+        if record.get("method") != method:
+            raise BaselineEvalError(f"eval records must have method={method}")
         if record.get("stage") != "target_eval":
             raise BaselineEvalError("baseline eval records must have stage=target_eval")
         if int(record.get("n_demos") or 0) != n_demos:
@@ -166,6 +186,7 @@ def verify_baseline_run_eval(
     train_seed: int,
     splits: TargetSplits,
     min_rollouts: int = MIN_ROLLOUTS,
+    method: str = "baseline",
 ) -> dict[str, Any]:
     if task_slug not in TARGET_SLUGS:
         raise BaselineEvalError(f"unknown target task {task_slug!r}")
@@ -192,6 +213,7 @@ def verify_baseline_run_eval(
                 train_seed=train_seed,
                 episode_ids=episode_ids,
                 min_rollouts=min_rollouts,
+                method=method,
             )
         )
     return {
@@ -203,13 +225,13 @@ def verify_baseline_run_eval(
     }
 
 
-def discover_baseline_runs(train_root: Path) -> list[dict[str, Any]]:
+def discover_baseline_runs(train_root: Path, *, method: str = "baseline") -> list[dict[str, Any]]:
     found: list[dict[str, Any]] = []
     if not train_root.exists():
         return found
     for manifest_path in sorted(train_root.rglob(MANIFEST_NAME)):
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-        if payload.get("stage") != "target" or payload.get("method") != "baseline":
+        if payload.get("stage") != "target" or payload.get("method") != method:
             continue
         found.append(
             {

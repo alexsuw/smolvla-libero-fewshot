@@ -15,6 +15,7 @@ ParameterBucket = Literal[
     "action_expert",
     "state_proj",
     "action_proj",
+    "lora",
     "unused_head",
     "unknown",
 ]
@@ -46,6 +47,8 @@ def classify_parameter(name: str) -> ParameterBucket:
     normalized = name[7:] if name.startswith("module.") else name
     if any(token in normalized for token in _UNUSED_HEAD):
         return "unused_head"
+    if _is_lora_parameter_name(normalized):
+        return "lora"
     if any(token in normalized for token in _VISION):
         return "vision"
     if any(token in normalized for token in _ACTION_EXPERT):
@@ -59,9 +62,20 @@ def classify_parameter(name: str) -> ParameterBucket:
     return "unknown"
 
 
-def should_train(bucket: ParameterBucket, scope: TrainableScope) -> bool:
+def _is_lora_parameter_name(name: str) -> bool:
+    return "lora_A" in name or "lora_B" in name or ".lora_" in name
+
+
+def should_train(
+    bucket: ParameterBucket,
+    scope: TrainableScope,
+    *,
+    peft_enabled: bool = False,
+) -> bool:
     if bucket in {"unused_head", "unknown"}:
         return False
+    if bucket == "lora":
+        return peft_enabled
     if bucket == "vision":
         return (not scope.freeze_vision_encoder) and (not scope.freeze_vlm_backbone)
     if bucket == "vlm":
@@ -92,6 +106,8 @@ def lerobot_finetune_flags(scope: TrainableScope) -> dict[str, bool]:
 def apply_scope_to_records(
     records: Iterable[ParameterRecord],
     scope: TrainableScope,
+    *,
+    peft_enabled: bool = False,
 ) -> list[ParameterRecord]:
     applied: list[ParameterRecord] = []
     for record in records:
@@ -99,7 +115,7 @@ def apply_scope_to_records(
         applied.append(
             ParameterRecord(
                 name=record.name,
-                requires_grad=should_train(bucket, scope),
+                requires_grad=should_train(bucket, scope, peft_enabled=peft_enabled),
                 numel=record.numel,
             )
         )
@@ -109,6 +125,8 @@ def apply_scope_to_records(
 def inspect_trainable_scope(
     records: Iterable[ParameterRecord],
     scope: TrainableScope,
+    *,
+    peft_enabled: bool = False,
 ) -> dict[str, Any]:
     if not scope.strict_allowlist:
         raise AllowlistError("strict_allowlist must stay true")
@@ -121,7 +139,7 @@ def inspect_trainable_scope(
     for item in trainable_rows:
         bucket = classify_parameter(item.name)
         buckets.setdefault(bucket, []).append(item.name)
-        if not should_train(bucket, scope):
+        if not should_train(bucket, scope, peft_enabled=peft_enabled):
             illegal.append(item.name)
     missing_required: list[str] = []
     required = {
@@ -130,6 +148,7 @@ def inspect_trainable_scope(
         "action_proj": scope.train_action_projections,
         "vlm": not scope.freeze_vlm_backbone,
         "vision": (not scope.freeze_vision_encoder) and (not scope.freeze_vlm_backbone),
+        "lora": peft_enabled,
     }
     present = {classify_parameter(item.name) for item in rows}
     for bucket, needed in required.items():
@@ -142,6 +161,10 @@ def inspect_trainable_scope(
         frozen_violations.extend(buckets["vlm"])
     if scope.freeze_vision_encoder and buckets.get("vision"):
         frozen_violations.extend(buckets["vision"])
+    if peft_enabled:
+        for name in buckets.get("lora", []):
+            if "vlm_with_expert.vlm" in name:
+                frozen_violations.append(name)
     matches = not illegal and not missing_required and not frozen_violations
     return {
         "total_parameters": total,
@@ -162,8 +185,9 @@ def assert_trainable_allowlist(
     scope: TrainableScope,
     *,
     output_dir: Path | None = None,
+    peft_enabled: bool = False,
 ) -> dict[str, Any]:
-    report = inspect_trainable_scope(records, scope)
+    report = inspect_trainable_scope(records, scope, peft_enabled=peft_enabled)
     if output_dir is not None:
         output_dir.mkdir(parents=True, exist_ok=True)
         names = report["trainable_names"]
@@ -197,11 +221,18 @@ def records_from_module(module: Any) -> list[ParameterRecord]:
     return rows
 
 
-def apply_trainable_scope(module: Any, scope: TrainableScope) -> None:
+def apply_trainable_scope(
+    module: Any,
+    scope: TrainableScope,
+    *,
+    peft_enabled: bool = False,
+) -> None:
     """Overwrite requires_grad from the project allowlist. Call before optimizer."""
 
     for name, parameter in module.named_parameters():
-        parameter.requires_grad = should_train(classify_parameter(name), scope)
+        parameter.requires_grad = should_train(
+            classify_parameter(name), scope, peft_enabled=peft_enabled
+        )
 
 
 def assert_module_trainable_scope(
@@ -209,10 +240,12 @@ def assert_module_trainable_scope(
     scope: TrainableScope,
     *,
     output_dir: Path | None = None,
+    peft_enabled: bool = False,
 ) -> dict[str, Any]:
-    apply_trainable_scope(module, scope)
+    apply_trainable_scope(module, scope, peft_enabled=peft_enabled)
     return assert_trainable_allowlist(
         records_from_module(module),
         scope,
         output_dir=output_dir,
+        peft_enabled=peft_enabled,
     )

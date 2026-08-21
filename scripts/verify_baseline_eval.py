@@ -33,6 +33,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--eval-root", type=Path)
     parser.add_argument("--min-rollouts", type=int, default=20)
     parser.add_argument(
+        "--method",
+        choices=("baseline", "lora"),
+        default="baseline",
+    )
+    parser.add_argument(
         "--print-grid",
         action="store_true",
         help="Print 18 eval_target --run-dir commands and exit.",
@@ -44,7 +49,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.print_grid:
-        for command in baseline_eval_commands():
+        train_config = (
+            Path("configs/train/target_lora.yaml")
+            if args.method == "lora"
+            else Path("configs/train/target_baseline.yaml")
+        )
+        for command in baseline_eval_commands(train_config=train_config):
             print(" ".join(command))
         return 0
     splits = load_target_splits(args.split)
@@ -62,14 +72,15 @@ def main(argv: list[str] | None = None) -> int:
                     train_seed=args.seed,
                     splits=splits,
                     min_rollouts=args.min_rollouts,
+                    method=args.method,
                 )
             )
         elif args.train_root is not None:
             if args.eval_root is None:
                 parser.error("--train-root requires --eval-root")
-            runs = discover_baseline_runs(args.train_root)
+            runs = discover_baseline_runs(args.train_root, method=args.method)
             if not runs:
-                raise BaselineEvalError(f"no baseline training runs under {args.train_root}")
+                raise BaselineEvalError(f"no {args.method} training runs under {args.train_root}")
             for run in runs:
                 eval_dir = default_eval_dir(
                     args.eval_root,
@@ -87,6 +98,7 @@ def main(argv: list[str] | None = None) -> int:
                         train_seed=int(run["train_seed"]),
                         splits=splits,
                         min_rollouts=args.min_rollouts,
+                        method=args.method,
                     )
                 )
         else:

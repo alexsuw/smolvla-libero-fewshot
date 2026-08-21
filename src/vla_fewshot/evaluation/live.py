@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from vla_fewshot.config import TrainableScope
+from vla_fewshot.config import TrainConfig, TrainableScope
 from vla_fewshot.data.layout import dataset_revision_root
 from vla_fewshot.data.metadata import load_suite_metadata
 from vla_fewshot.env.action_adapter import dataset_action_to_env
@@ -88,6 +88,7 @@ def load_eval_policy(
     scope: TrainableScope,
     stats: dict[str, Any],
     action_chunk_horizon: int,
+    train: TrainConfig | None = None,
 ) -> dict[str, Any]:
     loaded = load_pinned_smolvla(
         repo_id=repo_id,
@@ -96,7 +97,18 @@ def load_eval_policy(
         device="cuda",
     )
     policy = loaded["policy"]
-    if checkpoint.is_dir() and is_complete_checkpoint(checkpoint):
+    peft = train.peft if train is not None and train.method == "lora" else None
+    if peft is not None:
+        from vla_fewshot.model.peft import load_lora_policy_weights, wrap_policy_lora
+
+        assert train is not None
+        policy = wrap_policy_lora(policy, train)
+        loaded["policy"] = policy
+        if checkpoint.is_dir() and is_complete_checkpoint(checkpoint):
+            load_lora_policy_weights(policy, checkpoint, peft=peft)
+        elif checkpoint.is_file():
+            raise RuntimeError(f"full eval expects a checkpoint directory, got file {checkpoint}")
+    elif checkpoint.is_dir() and is_complete_checkpoint(checkpoint):
         import torch
 
         weights = torch.load(

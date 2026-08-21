@@ -188,3 +188,30 @@ uv run python scripts/train_target.py \
   --output-dir "$VLA_RUNS_DIR/target_baseline/drawer_middle_n05_s42" \
   --log-freq 50
 ```
+
+Target LoRA ablation uses the same 18 cells after the baseline exists:
+
+```bash
+uv run python scripts/train_target.py \
+  --config configs/train/target_lora.yaml \
+  --print-grid
+
+uv run python scripts/eval_target.py \
+  --train-config configs/train/target_lora.yaml \
+  --print-grid
+
+uv run python scripts/verify_baseline_eval.py --method lora --print-grid
+```
+
+Example LoRA cell (same origin/episodes as the matching baseline cell):
+
+```bash
+uv run python scripts/train_target.py \
+  --config configs/train/target_lora.yaml \
+  --task drawer_middle \
+  --n-demos 5 \
+  --seed 42 \
+  --profile full \
+  --output-dir "$VLA_RUNS_DIR/target_lora/drawer_middle_n05_s42" \
+  --log-freq 50
+```

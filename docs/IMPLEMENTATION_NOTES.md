@@ -193,7 +193,9 @@ pinned upstream revisions.
   correct/wrong, same seeds/states/hash). TODO 28 **code** is `train_target.py`
   baseline (no LoRA/replay). TODO 29 **code** is `eval_target.py --run-dir`
   plus `verify_baseline_eval.py` (≥20 rollouts and failure videos per complete
-  checkpoint). GPU runs wait on the freeze.
+  checkpoint). TODO 30 **code** is `train_target.py --config target_lora.yaml`
+  (PEFT wrap, merged-free adapter sidecar, same nested episodes). GPU runs wait
+  on the freeze. Replay-LoRA remains unwired.
 
 ## Seen-pretrain trainer (TODO 23 code)
 
@@ -214,7 +216,7 @@ pinned upstream revisions.
 ## Target baseline trainer (TODO 28 code)
 
 - `train_target.py` loads the frozen seen `weights.pt` only (fresh AdamW).
-  LoRA/replay configs fail closed. Episode IDs are nested prefixes from
+  Baseline YAML forbids LoRA/replay. Episode IDs are nested prefixes from
   `configs/splits/target_splits.json`. Stop is `min(100 epochs, 12000 steps)`
   with `sample_with_replacement: true`. The final step is always checkpointed
   even when it is not on `save_steps`.
@@ -224,3 +226,23 @@ pinned upstream revisions.
   nested episode IDs. Static rows cannot close the grid.
 - Epoch length is `ceil(n_samples / effective_batch_size)` optimizer steps,
   not physical micro-batches.
+
+## Target LoRA ablation (TODO 30 code)
+
+- Same frozen seen origin, same nested `libero_goal` episode IDs, same
+  `min(100 epochs, 12000 steps)` cap, no replay. Config:
+  `configs/train/target_lora.yaml` (r=64, alpha=64, LR `1e-3`).
+- Wrap uses `peft.LoraConfig` + `get_peft_model` after origin `weights.pt`
+  load and **before** the allowlist/optimizer. We do not call `lerobot-train`.
+- Target modules are the pinned expert `q_proj`/`v_proj` regex
+  `model\.vlm_with_expert\.lm_expert\..*\.(q|v)_proj`. This is the expert half of
+  LeRobot `SmolVLAPolicy._get_default_peft_targets`. State/action projections
+  stay full-rank because `target_lora.yaml` sets `train_state_projection` /
+  `train_action_projections` true and `train_action_expert` false.
+- Checkpoints write `adapter/adapter_config.json` + `adapter_model.pt` with
+  `merged: false`. Eval wraps again and loads adapters; `merge=True` /
+  `merge_and_unload` is refused.
+- `--print-grid --config configs/train/target_lora.yaml` lists the 18 LoRA
+  cells. Eval: `--train-config configs/train/target_lora.yaml --print-grid`.
+- Replay-LoRA YAML still fail-closes (`Replay-LoRA is not wired`).
+- Darwin / unfrozen seen YAML fail closed with `no GPU training was started`.

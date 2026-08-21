@@ -38,7 +38,7 @@ def require_frozen_seen_origin(*, checkpoint: Path | None = None) -> tuple[Path,
     selected = load_selected_checkpoint()
     if selected.status != "frozen" or not selected.sha256 or selected.uri is None:
         raise TrainError(
-            "target baseline waits until configs/selected_seen_checkpoint.yaml "
+            "target training waits until configs/selected_seen_checkpoint.yaml "
             "is frozen from seen probes. no GPU training was started."
         )
     origin = Path(checkpoint) if checkpoint is not None else Path(selected.uri)

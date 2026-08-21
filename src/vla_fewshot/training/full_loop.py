@@ -24,7 +24,8 @@ from vla_fewshot.logging.manifest import (
     write_resolved_config,
 )
 from vla_fewshot.logging.tensorboard import TensorBoardLogger
-from vla_fewshot.model.freezing import assert_module_trainable_scope
+from vla_fewshot.model.freezing import apply_trainable_scope, assert_module_trainable_scope
+from vla_fewshot.model.peft import wrap_policy_lora
 from vla_fewshot.model.smolvla import load_pinned_smolvla
 from vla_fewshot.reproducibility import atomic_write_json
 from vla_fewshot.storage.layout import (
@@ -180,8 +181,12 @@ def prepare_full_training(
     refuse_lerobot_train_cli()
     _disable_wandb()
     assert_replay_disabled(config)
-    if config.peft is not None:
-        raise TrainError("this training path does not wrap LoRA. no GPU training was started.")
+    if config.peft is not None and (config.stage != "target" or config.method != "lora"):
+        raise TrainError(
+            "this training path does not wrap LoRA. no GPU training was started."
+            if config.method != "replay_lora"
+            else "Replay-LoRA is not wired on this path yet. no GPU training was started."
+        )
     if config.tracking.wandb_enabled:
         raise TrainError("tracking.wandb_enabled must stay false")
     if config.stage == "target":
@@ -216,6 +221,14 @@ def prepare_full_training(
         load_policy_weights(
             origin_checkpoint, policy=policy, expected_sha256=origin_sha256
         )
+    if config.peft is not None:
+        policy = wrap_policy_lora(policy, config)
+        loaded["policy"] = policy
+    apply_trainable_scope(
+        policy,
+        config.trainable_scope,
+        peft_enabled=config.peft is not None,
+    )
     chunk_size = int(getattr(policy.config, "chunk_size", 50))
     dataset = _load_lerobot_dataset(
         config=config,
@@ -397,7 +410,10 @@ def run_full_training(
     )
     try:
         scope_report = assert_module_trainable_scope(
-            policy, config.trainable_scope, output_dir=run_dir
+            policy,
+            config.trainable_scope,
+            output_dir=run_dir,
+            peft_enabled=config.peft is not None,
         )
         optimizer = _adamw(policy, config)
         scaler = torch.amp.GradScaler("cuda") if precision == "fp16" else None
