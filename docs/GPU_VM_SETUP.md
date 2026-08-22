@@ -187,18 +187,20 @@ uv run python scripts/select_seen_checkpoint.py \
 ```
 
 Zero-shot from the frozen seen checkpoint (TODO 26). Empty train list, 3×20,
-same hash. `--task` omitted runs all three:
+same hash, **`libero_90` training stats** (not `libero_goal`). `--task`
+omitted runs all three. Official tree is `zero_shot_v2_seen_stats`
+(1/60). The older `zero_shot/` 0/60 used the wrong suite and stays on disk.
 
 ```bash
 uv run python scripts/eval_zero_shot.py --print-grid
 
 uv run python scripts/eval_zero_shot.py \
   --profile full \
-  --output-dir "$VLA_RUNS_DIR/zero_shot" \
+  --output-dir "$VLA_RUNS_DIR/zero_shot_v2_seen_stats" \
   --output-root "$VLA_DATASETS_DIR"
 
 uv run python scripts/export_zero_shot_report.py \
-  --eval-root "$VLA_RUNS_DIR/zero_shot"
+  --eval-root "$VLA_RUNS_DIR/zero_shot_v2_seen_stats"
 ```
 
 Paired language control (TODO 27). Same frozen hash, same seeds/states, only the
@@ -211,6 +213,13 @@ uv run python scripts/eval_language_control.py \
   --profile full \
   --output-dir "$VLA_RUNS_DIR/language_control" \
   --output-root "$VLA_DATASETS_DIR"
+
+uv run python scripts/export_language_control_report.py \
+  --eval-root "$VLA_RUNS_DIR/language_control"
+
+# Percent + ETA from JSONL (same --output-dir; safe while a job is running)
+uv run python scripts/watch_eval_progress.py \
+  --eval-root "$VLA_RUNS_DIR/language_control" --watch --interval 20
 ```
 
 Seen LoRA (TODO 25) is skipped. After zero-shot and language control, run the

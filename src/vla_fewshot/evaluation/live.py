@@ -237,7 +237,10 @@ class LiveRolloutAdapter:
         )
         env = self._env(spec.suite, task_id)
         seed_live_inference(spec.eval_seed)
-        observation, _info = env.reset(seed=spec.eval_seed)
+        observation, _info = env.reset(
+            seed=spec.eval_seed,
+            init_state_id=spec.rollout_index,
+        )
         fingerprint = fingerprint_observation(observation)
         self.policy.reset()
         traces: list[dict[str, Any]] = []
@@ -298,6 +301,7 @@ class LiveRolloutAdapter:
             "eval_seed": spec.eval_seed,
             "inference_seed": spec.eval_seed,
             "rollout_index": spec.rollout_index,
+            "init_state_id": spec.rollout_index,
             "protocol_id": spec.protocol_id,
             "instruction_condition": spec.instruction_condition,
             "instruction_text_used": spec.instruction_text_used,

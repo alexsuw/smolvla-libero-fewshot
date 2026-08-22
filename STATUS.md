@@ -492,20 +492,24 @@ uv run python scripts/select_seen_checkpoint.py --help
 
 ## Zero-shot final eval (TODO 26)
 
-Status: complete on this VM. Frozen step 100000, 3 `libero_goal` tasks × 20
-rollouts, empty train list, hash
-`2cd510a594a87580f7368b782ca9b37332c0e5002d807093c759e95fbfb57c88`.
+Status: complete on this VM. Official protocol is `zero_shot_v2_seen_stats`
+(frozen step 100000, 3 `libero_goal` tasks × 20, empty train list, hash
+`2cd510a594a87580f7368b782ca9b37332c0e5002d807093c759e95fbfb57c88`,
+normalization suite `libero_90`).
 
-Result: **0/20** on `drawer_middle`, `bowl_stove`, and `wine_cabinet`
-(overall 0/60, Wilson 95% [0.000, 0.161] per task). Every failure has
-video + trace. This is N=0 on the cost curve, not a reason to unfreeze
-or retune on target success.
+Result: **1/20** `drawer_middle` (seed 1001), **0/20** `bowl_stove`,
+**0/20** `wine_cabinet` (overall **1/60**). The earlier `final_v1` 0/60
+used held-out `libero_goal` MEAN/STD and is protocol-invalid; those
+artifacts stay on disk. This is N=0 on the cost curve, not a reason to
+unfreeze or retune on target success.
 
 Persistent evidence:
 
 ```text
-/mnt/vla/eval/zero_shot/report/summary.md
-/mnt/vla/eval/zero_shot/report/results_long.csv
+/mnt/vla/eval/zero_shot_v2_seen_stats/report/summary.md
+/mnt/vla/eval/zero_shot_v2_seen_stats/report/results_long.csv
+/mnt/vla/validation/TODO26_v2/
+/mnt/vla/eval/zero_shot/          # contaminated final_v1 0/60, kept
 /mnt/vla/validation/TODO26/
 ```
 
@@ -565,25 +569,32 @@ uv run python scripts/eval_zero_shot.py --help
 uv run python scripts/eval_zero_shot.py --print-grid
 ```
 
-## Language control (TODO 27 code)
+## Language control (TODO 27)
 
-Status: software complete on CPU. Live paired rollouts wait until the seen
-checkpoint YAML is `frozen`.
+Status: complete on this VM. Protocol `final_language_control_v1`, frozen
+step 100000, `libero_90` stats, 3 tasks × 20 seeds × correct/wrong.
 
-Completed:
+Result: correct **1/60** (same `drawer_middle` seed 1001 as zero-shot),
+wrong **0/60**. All 60 pairs share fingerprints and the frozen hash.
+Correct cells reproduce zero-shot v2 fingerprints and successes 60/60.
+Mean action L2: drawer 0.582, bowl 0.998, wine 0.966. Seed 1001 is
+correct-success / wrong-fail (L2 0.477). Low wrong-success is not the
+proof; the trajectories diverge. Do not retune on these numbers.
 
-- `eval_language_control.py` runs all three targets when `--task` is omitted;
-- same frozen seen hash as zero-shot; empty train episode list;
-- paired correct/wrong instructions, matching fingerprints and checkpoint hash;
-- `--run-dir` refused; Darwin / unfrozen YAML fail closed.
+Persistent evidence:
+
+```text
+/mnt/vla/eval/language_control/report/summary.md
+/mnt/vla/eval/language_control/report/pairs.csv
+/mnt/vla/validation/TODO27/
+```
 
 Acceptance commands:
 
 ```bash
-uv sync --frozen --extra data
-uv run pytest -q tests/unit/test_language_control_eval.py tests/integration/test_eval_resume.py
 uv run python scripts/eval_language_control.py --help
-uv run python scripts/eval_language_control.py --print-grid
+uv run python scripts/export_language_control_report.py --help
+uv run python scripts/watch_eval_progress.py --help
 ```
 
 ## Baseline eval checker (TODO 29 code)
@@ -653,7 +664,7 @@ uv run python scripts/eval_target.py --train-config configs/train/target_replay_
 
 ## Next milestone
 
-TODO 26 zero-shot is done (0/60 on the three targets). Next is TODO 27
-`eval_language_control.py` (paired correct/wrong, same frozen hash).
-Do not retune on the zero-shot zeros. The 18-cell baseline waits until
-the persistent volume is large enough. Seen LoRA is skipped.
+M7 live eval is done (zero-shot 1/60, language control 1/60 vs 0/60
+with diverging paired trajectories). Next is TODO 28, the 18-cell
+baseline, only after the persistent volume is actually ~512 GB. Do not
+retune on target success. Seen LoRA is skipped.

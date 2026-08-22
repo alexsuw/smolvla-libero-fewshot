@@ -20,6 +20,7 @@ from vla_fewshot.evaluation.language_control import (
     wrong_instruction_map,
 )
 from vla_fewshot.evaluation.metrics import cell_summary
+from vla_fewshot.evaluation.progress import format_eval_progress, progress_from_counts
 from vla_fewshot.evaluation.protocol import (
     PlannedRollout,
     ProtocolError,
@@ -170,23 +171,34 @@ def plan_eval_rollouts(
         )
     if language_control:
         mapping = wrong_instruction_map(config)
-        planned: list[PlannedRollout] = []
-        for condition in ("correct", "wrong"):
-            planned.extend(
-                plan_target_rollouts(
-                    config,
+        by_condition = {
+            condition: plan_target_rollouts(
+                config,
+                task_slug=task_slug,
+                n_demos=n_demos,
+                train_seed=train_seed,
+                seeds=seeds,
+                instruction_condition=condition,
+                instruction_text=instruction_for(
                     task_slug=task_slug,
-                    n_demos=n_demos,
-                    train_seed=train_seed,
-                    seeds=seeds,
-                    instruction_condition=condition,
-                    instruction_text=instruction_for(
-                        task_slug=task_slug,
-                        condition=condition,
-                        mapping=mapping,
-                    ),
-                )
+                    condition=condition,
+                    mapping=mapping,
+                ),
             )
+            for condition in ("correct", "wrong")
+        }
+        planned: list[PlannedRollout] = []
+        for correct, wrong in zip(
+            by_condition["correct"], by_condition["wrong"], strict=True
+        ):
+            if correct.eval_seed != wrong.eval_seed:
+                raise ProtocolError("language-control pair seeds drifted while planning")
+            if correct.rollout_index != wrong.rollout_index:
+                raise ProtocolError(
+                    "language-control pair rollout_index drifted while planning"
+                )
+            planned.append(correct)
+            planned.append(wrong)
         return planned
     return plan_target_rollouts(
         config,
@@ -246,6 +258,28 @@ def run_static_evaluation(
     expected_keys = [item.key(digest) for item in planned]
     written = 0
     skipped = 0
+    session_started = time.perf_counter()
+    session_written = 0
+
+    def report_progress(record: dict[str, Any] | None = None) -> None:
+        label = None
+        if record is not None:
+            label = (
+                f"{record.get('task_slug')} seed={record.get('eval_seed')} "
+                f"{record.get('instruction_condition')} ok={record.get('success')}"
+            )
+        print(
+            format_eval_progress(
+                progress_from_counts(
+                    completed=len(store),
+                    planned=len(planned),
+                    elapsed_seconds=time.perf_counter() - session_started,
+                    session_completed=session_written,
+                    label=label,
+                )
+            ),
+            flush=True,
+        )
     episode_ids = training_episode_ids(splits, task_slug=task_slug, n_demos=n_demos)
     if stage == "zero_shot":
         from vla_fewshot.evaluation.zero_shot import assert_zero_shot_cell
@@ -261,9 +295,10 @@ def run_static_evaluation(
         )
 
     pending: tuple[dict[str, Any], Future[str]] | None = None
+    report_progress()
 
     def flush_pending() -> None:
-        nonlocal written, skipped, pending
+        nonlocal written, skipped, pending, session_written
         if pending is None:
             return
         record, future = pending
@@ -271,9 +306,11 @@ def run_static_evaluation(
         status = store.append(record)
         if status == "written":
             written += 1
+            session_written += 1
         else:
             skipped += 1
         pending = None
+        report_progress(record)
 
     with ThreadPoolExecutor(max_workers=1, thread_name_prefix="eval-av1") as encoder:
         for spec in planned:
@@ -325,6 +362,8 @@ def run_static_evaluation(
                     )
             if pending is not None:
                 flush_pending()
+                if language_control:
+                    assert_completed_language_pair_fingerprints(store.records())
             if video_future is not None:
                 pending = (record, video_future)
             else:
@@ -332,9 +371,15 @@ def run_static_evaluation(
                 status = store.append(record)
                 if status == "written":
                     written += 1
+                    session_written += 1
                 else:
                     skipped += 1
+                report_progress(record)
+                if language_control:
+                    assert_completed_language_pair_fingerprints(store.records())
         flush_pending()
+        if language_control:
+            assert_completed_language_pair_fingerprints(store.records())
 
     leftover = remaining_keys(expected_keys, store.completed_keys())
     complete = not leftover
@@ -495,14 +540,21 @@ def _rollout_once(
     return record, traces, frames
 
 
-def _write_language_pairs(output_dir: Path, records: list[dict[str, Any]]) -> None:
+def _paired_language_records(
+    records: list[dict[str, Any]],
+) -> dict[int, dict[str, dict[str, Any]]]:
     by_seed: dict[int, dict[str, dict[str, Any]]] = {}
     for record in records:
         by_seed.setdefault(int(record["eval_seed"]), {})[record["instruction_condition"]] = record
-    rows = []
-    for seed, pair in sorted(by_seed.items()):
+    return by_seed
+
+
+def assert_completed_language_pair_fingerprints(records: list[dict[str, Any]]) -> None:
+    """Fail closed as soon as one finished pair has drifted state or weights."""
+
+    for seed, pair in _paired_language_records(records).items():
         if set(pair) != {"correct", "wrong"}:
-            raise ProtocolError(f"language pair incomplete for seed {seed}")
+            continue
         if pair["correct"]["checkpoint_sha256"] != pair["wrong"]["checkpoint_sha256"]:
             raise ProtocolError(
                 f"paired language control checkpoint hash drifted at seed {seed}"
@@ -511,6 +563,15 @@ def _write_language_pairs(output_dir: Path, records: list[dict[str, Any]]) -> No
             raise ProtocolError(
                 f"paired language control fingerprints drifted at seed {seed}"
             )
+
+
+def _write_language_pairs(output_dir: Path, records: list[dict[str, Any]]) -> None:
+    by_seed = _paired_language_records(records)
+    rows = []
+    for seed, pair in sorted(by_seed.items()):
+        if set(pair) != {"correct", "wrong"}:
+            raise ProtocolError(f"language pair incomplete for seed {seed}")
+        assert_completed_language_pair_fingerprints([pair["correct"], pair["wrong"]])
         left = load_actions(Path(pair["correct"]["trace_uri"]))
         right = load_actions(Path(pair["wrong"]["trace_uri"]))
         rows.append(

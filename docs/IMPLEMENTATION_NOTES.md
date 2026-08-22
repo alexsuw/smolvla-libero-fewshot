@@ -83,8 +83,12 @@ pinned upstream revisions.
   `env.step`. Dataset/training stay in `[0, 1]`. Binary runtime default:
   `< 0.5 -> +1`, `>= 0.5 -> -1`.
 - `create_libero_envs(..., n_envs=1)` always constructs `episode_index=0`.
-  Pinned LeRobot then walks `init_state_id` on every `reset`. Expert replay
-  therefore pins `LiberoRuntime(init_state_id=...)` from the gate. NVIDIA
+  Pinned LeRobot then walks `init_state_id` on every `reset`. Seed alone
+  does not restore the same initial state after later resets. Expert replay
+  therefore pins `LiberoRuntime(init_state_id=...)` from the gate. Live eval
+  pins `reset(..., init_state_id=rollout_index)` so language-control
+  correct/wrong pairs, and later matched baseline seeds, share one
+  `pruned_init` row. NVIDIA
   dataset order is not `pruned_init` order: the first `libero_goal` wine
   episode (id 6) matches init state 1, not 0.
 - Dataset `task_index` is not the LIBERO env `task_id`. Spec table 9/7/4 are
@@ -227,10 +231,21 @@ pinned upstream revisions.
 - `scripts/export_seen_probe_report.py` writes CSV + markdown for every
   probe JSONL row (selection pool and leftover interrupt/5k cells) under
   `<probe-root>/report/` on durable disk, not Git. Videos are not deleted.
-- Frozen step 100000 zero-shot (`final_v1`, 3×20, empty train list) scored
-  0/60 on `drawer_middle` / `bowl_stove` / `wine_cabinet`. Failure videos
-  and traces are on durable disk. Target success must not unfreeze or
-  retune the seen checkpoint.
+- Frozen step 100000 zero-shot first ran as `final_v1` with
+  `suite_target` (`libero_goal`) MEAN/STD and scored 0/60. That is
+  protocol-invalid: the checkpoint was trained with `libero_90` stats.
+  Official rerun `zero_shot_v2_seen_stats` uses seen-suite stats and
+  per-seed inference RNG: 1/60 (`drawer_middle` seed 1001 only). Keep
+  both artifact trees. Target success must not unfreeze or retune.
+- Language control (`final_language_control_v1`) pins
+  `init_state_id=rollout_index` and interleaves correct/wrong per seed.
+  Seed-only LIBERO reset drifts after later resets; the pin keeps paired
+  fingerprints identical. Live 3×20×2 finished with 60/60 fingerprint
+  matches, `libero_90` stats, and the same successes as zero-shot v2
+  (drawer seed 1001 only). Wrong-instruction success is 0/60; mean
+  action L2 stays 0.58–1.00, so the instruction string changes the
+  trajectory. `scripts/watch_eval_progress.py` prints percent + ETA
+  from JSONL without starting GPU work.
 - `--run-dir --steps 100000` (one step) still writes
   `<output>/step_100000/<task>/`. A single-step job that omitted the
   `step_*` prefix is a leftover tree at the probe root and is ignored

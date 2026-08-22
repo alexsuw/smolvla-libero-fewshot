@@ -6,6 +6,7 @@ import sys
 import pytest
 
 from vla_fewshot.config import load_config
+from vla_fewshot.env.libero_env import apply_libero_init_state_id
 from vla_fewshot.evaluation.cli import run_eval_cli
 from vla_fewshot.evaluation.language_control import (
     LANGUAGE_CONTROL_SLUGS,
@@ -14,6 +15,11 @@ from vla_fewshot.evaluation.language_control import (
     language_control_commands,
 )
 from vla_fewshot.evaluation.protocol import ProtocolError
+from vla_fewshot.evaluation.runner import (
+    assert_completed_language_pair_fingerprints,
+    plan_eval_rollouts,
+    static_smoke_config,
+)
 from vla_fewshot.evaluation.store import RolloutStore
 from vla_fewshot.evaluation.zero_shot import resolve_frozen_eval_checkpoint
 
@@ -105,3 +111,63 @@ def test_language_control_static_cli_runs_three_paired_tasks(tmp_path: Path) -> 
             hashes.add(record["checkpoint_sha256"])
         assert all(len(value) == 1 for value in fingerprints.values())
         assert len(hashes) == 1
+        conditions = [record["instruction_condition"] for record in store.records()]
+        assert conditions == ["correct", "wrong", "correct", "wrong", "correct", "wrong"]
+
+
+def test_apply_libero_init_state_id_pins_next_reset() -> None:
+    class _Inner:
+        init_state_id = 99
+
+    class _Env:
+        envs = [_Inner()]
+
+    env = _Env()
+    apply_libero_init_state_id(env, None)
+    assert env.envs[0].init_state_id == 99
+    apply_libero_init_state_id(env, 3)
+    assert env.envs[0].init_state_id == 3
+
+
+def test_language_control_plan_interleaves_same_seed_pairs() -> None:
+    config = static_smoke_config(load_config(ROOT / "configs" / "eval" / "language_control.yaml"))
+    planned = plan_eval_rollouts(
+        config,
+        task_slug="drawer_middle",
+        n_demos=0,
+        train_seed=None,
+        project_root=ROOT,
+        language_control=True,
+    )
+    assert [item.instruction_condition for item in planned] == [
+        "correct",
+        "wrong",
+        "correct",
+        "wrong",
+        "correct",
+        "wrong",
+    ]
+    assert planned[0].eval_seed == planned[1].eval_seed
+    assert planned[0].rollout_index == planned[1].rollout_index == 0
+    assert planned[0].instruction_text_used != planned[1].instruction_text_used
+
+
+def test_completed_language_pair_fingerprint_drift_fails_closed() -> None:
+    records = [
+        {
+            "eval_seed": 1000,
+            "instruction_condition": "correct",
+            "checkpoint_sha256": "abc",
+            "initial_state_fingerprint": "fp-a",
+        },
+        {
+            "eval_seed": 1000,
+            "instruction_condition": "wrong",
+            "checkpoint_sha256": "abc",
+            "initial_state_fingerprint": "fp-b",
+        },
+    ]
+    with pytest.raises(ProtocolError, match="fingerprints drifted"):
+        assert_completed_language_pair_fingerprints(records)
+    records[1]["initial_state_fingerprint"] = "fp-a"
+    assert_completed_language_pair_fingerprints(records)

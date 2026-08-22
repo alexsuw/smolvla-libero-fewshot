@@ -195,9 +195,15 @@ class LiberoRuntime:
         self._env = self._envs[suite][task_id]
         self._closed = False
 
-    def reset(self, seed: int | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
-        if self._pinned_init_state_id is not None:
-            self._env.envs[0].init_state_id = self._pinned_init_state_id
+    def reset(
+        self,
+        seed: int | None = None,
+        init_state_id: int | None = None,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        apply_libero_init_state_id(
+            self._env,
+            self._pinned_init_state_id if init_state_id is None else init_state_id,
+        )
         observation, info = self._env.reset(seed=self.seed if seed is None else seed)
         return self.policy_observation(observation), self._unbatch_info(info)
 
@@ -261,6 +267,21 @@ class LiberoRuntime:
         if hasattr(success, "item"):
             success = success.item()
         return {**info, "is_success": bool(success)}
+
+
+def apply_libero_init_state_id(env: Any, init_state_id: int | None) -> None:
+    """Pin the next LeRobot LIBERO reset to a specific pruned_init row.
+
+    Pinned `create_libero_envs` walks `init_state_id` on every `reset`. Seed
+    alone does not restore the same initial state after later resets, so live
+    eval must set this before each paired language-control rollout.
+    """
+
+    if init_state_id is None:
+        return
+    if int(init_state_id) < 0:
+        raise ValueError(f"init_state_id must be >= 0, got {init_state_id}")
+    env.envs[0].init_state_id = int(init_state_id)
 
 
 def _first_hwc(image: Any) -> Any:
