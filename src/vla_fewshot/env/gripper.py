@@ -12,6 +12,24 @@ import math
 from typing import Sequence
 
 
+def clip_dataset_gripper(gripper: float) -> float:
+    """Clip unnormalized policy gripper into dataset space [0, 1].
+
+    MEAN_STD unnormalize does not clip. BC overshoot and early checkpoints can
+    leave the last channel slightly or far outside the recorded [0, 1] range.
+    Env-space ±1 must still be refused when this helper is not applied.
+    """
+
+    value = float(gripper)
+    if not math.isfinite(value):
+        raise ValueError(f"gripper is not finite: {gripper!r}")
+    if value < 0.0:
+        return 0.0
+    if value > 1.0:
+        return 1.0
+    return value
+
+
 def dataset_gripper_to_env(gripper: float) -> float:
     """Continuous conversion used by unit tests and traces."""
 

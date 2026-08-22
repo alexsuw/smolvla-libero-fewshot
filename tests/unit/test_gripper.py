@@ -3,6 +3,7 @@ import pytest
 from vla_fewshot.env.action_adapter import dataset_action_to_env, dual_space_trace_record
 from vla_fewshot.env.gripper import (
     binary_dataset_gripper_to_env,
+    clip_dataset_gripper,
     dataset_gripper_to_env,
     env_gripper_to_dataset,
 )
@@ -23,6 +24,14 @@ def test_binary_runtime_postprocessor() -> None:
 
 def test_env_gripper_roundtrip() -> None:
     assert env_gripper_to_dataset(dataset_gripper_to_env(0.25)) == pytest.approx(0.25)
+
+
+def test_clip_dataset_gripper_saturates_unit_interval() -> None:
+    assert clip_dataset_gripper(-0.02) == 0.0
+    assert clip_dataset_gripper(1.08) == 1.0
+    assert clip_dataset_gripper(0.4) == 0.4
+    with pytest.raises(ValueError, match="not finite"):
+        clip_dataset_gripper(float("nan"))
 
 
 def test_env_space_gripper_is_not_accepted_as_dataset_action() -> None:

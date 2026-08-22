@@ -191,6 +191,7 @@ def _live_adapter(args: argparse.Namespace, config: EvalConfig, checkpoint: Path
     return LiveRolloutAdapter(
         policy=loaded["policy"],
         preprocessor=loaded["preprocessor"],
+        postprocessor=loaded["postprocessor"],
         device=loaded["device"],
         hard_reset=config.protocol.hard_reset,
     )

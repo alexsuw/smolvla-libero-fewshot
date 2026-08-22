@@ -10,7 +10,7 @@ from typing import Any
 from vla_fewshot.config import TrainConfig, TrainableScope
 from vla_fewshot.data.layout import dataset_revision_root
 from vla_fewshot.data.metadata import load_suite_metadata
-from vla_fewshot.env.action_adapter import dataset_action_to_env
+from vla_fewshot.env.action_adapter import dataset_action_to_env, policy_action_to_dataset
 from vla_fewshot.env.libero_env import LiberoRuntime, resolve_env_task_id
 from vla_fewshot.env.replay import load_replay_gate
 from vla_fewshot.evaluation.protocol import PlannedRollout
@@ -21,6 +21,7 @@ from vla_fewshot.model.features import (
     POLICY_TASK,
     POLICY_WRIST_IMAGE,
 )
+from vla_fewshot.model.processors import make_policy_processors
 from vla_fewshot.model.smolvla import load_pinned_smolvla
 from vla_fewshot.storage.layout import CHECKPOINT_WEIGHTS_PT_NAME
 from vla_fewshot.training.checkpoint import is_complete_checkpoint
@@ -79,25 +80,6 @@ def observation_to_batch(observation: dict[str, Any], *, task: str, device: Any)
     }
 
 
-def _make_preprocessor(policy: Any, stats: dict[str, Any], device: str) -> Any:
-    from lerobot.policies.factory import make_pre_post_processors
-
-    try:
-        preprocessor, _post = make_pre_post_processors(
-            policy.config,
-            pretrained_path=None,
-            dataset_stats=stats,
-            preprocessor_overrides={"device_processor": {"device": str(device)}},
-        )
-    except TypeError:
-        preprocessor, _post = make_pre_post_processors(
-            policy.config,
-            pretrained_path=None,
-            dataset_stats=stats,
-        )
-    return preprocessor
-
-
 def load_eval_policy(
     *,
     checkpoint: Path,
@@ -143,8 +125,10 @@ def load_eval_policy(
         raise RuntimeError(f"full eval expects a checkpoint directory, got file {checkpoint}")
     policy.config.n_action_steps = min(int(action_chunk_horizon), int(policy.config.chunk_size))
     policy.eval()
-    preprocessor = _make_preprocessor(policy, stats, loaded["device"])
-    return {**loaded, "preprocessor": preprocessor}
+    preprocessor, postprocessor = make_policy_processors(
+        policy, stats, device=str(loaded["device"])
+    )
+    return {**loaded, "preprocessor": preprocessor, "postprocessor": postprocessor}
 
 
 def suite_stats(*, datasets_dir: Path, repo_id: str, revision: str, suite: str) -> dict[str, Any]:
@@ -162,13 +146,20 @@ class LiveRolloutAdapter:
         *,
         policy: Any,
         preprocessor: Any,
+        postprocessor: Any,
         device: Any,
         hard_reset: bool = True,
     ) -> None:
         if not hard_reset:
             raise ValueError("hard_reset must stay true")
+        if postprocessor is None:
+            raise ValueError(
+                "action postprocessor is required after select_action; "
+                "refusing normalized actions as dataset-space"
+            )
         self.policy = policy
         self.preprocessor = preprocessor
+        self.postprocessor = postprocessor
         self.device = device
         self._envs: dict[tuple[str, int], LiberoRuntime] = {}
 
@@ -224,13 +215,9 @@ class LiveRolloutAdapter:
             with torch.inference_mode():
                 for _ in range(chunk_size):
                     action = self.policy.select_action(processed)
-                    tensor = action if torch.is_tensor(action) else torch.as_tensor(action)
-                    if tensor.ndim == 3:
-                        tensor = tensor[:, 0]
-                    if tensor.ndim == 2:
-                        tensor = tensor[0]
-                    values = [float(item) for item in tensor.detach().cpu().flatten().tolist()]
-                    chunk.append(values[:7])
+                    chunk.append(
+                        policy_action_to_dataset(action, postprocessor=self.postprocessor)
+                    )
             stop = False
             for dataset_action in chunk:
                 env_action = dataset_action_to_env(dataset_action, binary=True)

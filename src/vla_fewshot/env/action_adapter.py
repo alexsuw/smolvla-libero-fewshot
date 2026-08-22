@@ -7,6 +7,7 @@ from typing import Any, Sequence
 from vla_fewshot.env.gripper import (
     action_is_finite,
     binary_dataset_gripper_to_env,
+    clip_dataset_gripper,
     dataset_gripper_to_env,
 )
 
@@ -23,6 +24,50 @@ def _as_action(action: Sequence[float]) -> list[float]:
     return values
 
 
+def flatten_policy_action(action: Any, *, dim: int = ACTION_DIM) -> list[float]:
+    """Take the unpadded 7D prefix from a policy tensor or nested list."""
+
+    value: Any = action
+    if hasattr(value, "detach"):
+        value = value.detach()
+    if hasattr(value, "cpu"):
+        value = value.cpu()
+    if hasattr(value, "ndim"):
+        ndim = int(value.ndim)
+        if ndim == 3:
+            value = value[:, 0]
+            ndim = int(value.ndim)
+        if ndim == 2:
+            value = value[0]
+    if hasattr(value, "tolist"):
+        value = value.tolist()
+    while isinstance(value, (list, tuple)) and value and isinstance(value[0], (list, tuple)):
+        value = value[0]
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(f"policy action must be a sequence, got {type(action)!r}")
+    values = [float(item) for item in value]
+    if len(values) < dim:
+        raise ValueError(f"policy action shorter than {dim}: {len(values)}")
+    prefix = values[:dim]
+    if not action_is_finite(prefix):
+        raise ValueError(f"non-finite policy action: {prefix}")
+    return prefix
+
+
+def policy_action_to_dataset(action: Any, *, postprocessor: Any) -> list[float]:
+    """Unnormalize select_action output into dataset space, then clip gripper."""
+
+    if postprocessor is None:
+        raise ValueError(
+            "action postprocessor is required after select_action; "
+            "refusing normalized actions as dataset-space"
+        )
+    unnormalized = postprocessor(action)
+    values = flatten_policy_action(unnormalized)
+    values[6] = clip_dataset_gripper(values[6])
+    return values
+
+
 def dataset_action_to_env(
     action: Sequence[float],
     *,
@@ -35,7 +80,8 @@ def dataset_action_to_env(
     gripper_dataset = values[6]
     if not 0.0 - 1e-6 <= gripper_dataset <= 1.0 + 1e-6:
         raise ValueError(
-            "dataset gripper must stay in [0, 1]; refusing possible double conversion"
+            "dataset gripper must stay in [0, 1]; refusing possible double conversion "
+            f"(got {gripper_dataset})"
         )
     gripper = (
         binary_dataset_gripper_to_env(gripper_dataset, threshold)

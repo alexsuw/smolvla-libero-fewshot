@@ -200,6 +200,12 @@ pinned upstream revisions.
   seen-pretrain step. No LeRobot eval CLI is called.
   `n_action_steps` is set to the eval `action_chunk_horizon` (10). Env task
   IDs are resolved by exact language match, not dataset `task_index`.
+  Live eval must apply the LeRobot action postprocessor (MEAN_STD unnormalize
+  + CPU move) to `select_action` output before `dataset_action_to_env`.
+  Dropping that pipeline leaves gripper in z-score space, which fails the
+  dataset `[0, 1]` gate. After unnormalize, gripper is clipped to `[0, 1]`
+  because pinned UnnormalizerProcessorStep does not clip; env-space `-1`
+  without unnormalize is still refused.
 - Seen checkpoint selection scores only the three probe slugs, drops NaN/
   unstable rows, rejects `static_*` protocols and any target-task slug, then
   takes the earliest checkpoint within `tolerance_success=0.02` of the best

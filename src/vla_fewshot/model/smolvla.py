@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import math
 import platform
 from pathlib import Path
 from typing import Any
 
 from vla_fewshot.config import TrainableScope
-from vla_fewshot.env.action_adapter import dataset_action_to_env
+from vla_fewshot.env.action_adapter import dataset_action_to_env, policy_action_to_dataset
 from vla_fewshot.model.features import (
     LIBERO_ACTION_DIM,
     LIBERO_INPUT_FEATURES,
@@ -142,13 +141,10 @@ def run_dummy_inference(
     """One finite action chunk through production gripper conversion. No env."""
 
     import torch
-    from lerobot.policies.factory import make_pre_post_processors
 
-    preprocessor, postprocessor = make_pre_post_processors(
-        policy.config,
-        pretrained_path=None,
-        dataset_stats=_identity_stats(),
-    )
+    from vla_fewshot.model.processors import make_policy_processors
+
+    preprocessor, postprocessor = make_policy_processors(policy, _identity_stats())
     device = next(policy.parameters()).device
     batch = {
         POLICY_MAIN_IMAGE: torch.zeros(1, 3, 256, 256, device=device),
@@ -159,22 +155,7 @@ def run_dummy_inference(
     processed = preprocessor(batch)
     policy.reset()
     action = policy.select_action(processed)
-    if postprocessor is not None:
-        try:
-            action = postprocessor(action)
-        except Exception:
-            pass
-    tensor = action if torch.is_tensor(action) else torch.as_tensor(action)
-    if tensor.ndim == 3:
-        tensor = tensor[:, 0]
-    if tensor.ndim == 2:
-        tensor = tensor[0]
-    values = [float(item) for item in tensor.detach().cpu().flatten().tolist()]
-    if len(values) < LIBERO_ACTION_DIM:
-        raise RuntimeError(f"policy action shorter than {LIBERO_ACTION_DIM}: {len(values)}")
-    dataset_action = values[:LIBERO_ACTION_DIM]
-    if not all(math.isfinite(item) for item in dataset_action):
-        raise RuntimeError(f"non-finite policy action: {dataset_action}")
+    dataset_action = policy_action_to_dataset(action, postprocessor=postprocessor)
     env_action = dataset_action_to_env(dataset_action, binary=True)
     return {
         "task_text": task_text,

@@ -463,9 +463,12 @@ on the VM. Tracked `configs/selected_seen_checkpoint.yaml` stays
 
 Completed:
 
-- `eval_seen.py --profile full` runs LIBERO/SmolVLA probes (`--run-dir` covers
-  every complete checkpoint × three frozen slugs);
-- target/language full eval refuses until the seen checkpoint is frozen;
+- `--profile full` on Linux + CUDA runs live SmolVLA/LIBERO probes
+  (`--run-dir` covers every complete checkpoint × three frozen slugs).
+  The first live attempt crashed because `select_action` z-scores were
+  passed to the dataset gripper gate; eval now keeps the LeRobot
+  unnormalize postprocessor. Target/language full eval still refuses
+  until the seen checkpoint is frozen.
 - `select_seen_checkpoint.py` dry-run-first: earliest within 0.02 of best,
   else step 100000; never reads target success; `--write` is idempotent;
 - static `*_v1` probe rows cannot freeze the checkpoint.

@@ -27,6 +27,7 @@ from vla_fewshot.logging.manifest import (
 from vla_fewshot.logging.tensorboard import TensorBoardLogger
 from vla_fewshot.model.freezing import apply_trainable_scope, assert_module_trainable_scope
 from vla_fewshot.model.peft import wrap_policy_lora
+from vla_fewshot.model.processors import make_policy_processors
 from vla_fewshot.model.smolvla import load_pinned_smolvla
 from vla_fewshot.reproducibility import atomic_write_json
 from vla_fewshot.storage.layout import (
@@ -121,21 +122,7 @@ def _move_batch(batch: dict[str, Any], device: Any) -> dict[str, Any]:
 
 
 def _make_preprocessor(policy: Any, stats: dict[str, Any], device: str) -> Any:
-    from lerobot.policies.factory import make_pre_post_processors
-
-    try:
-        preprocessor, _post = make_pre_post_processors(
-            policy.config,
-            pretrained_path=None,
-            dataset_stats=stats,
-            preprocessor_overrides={"device_processor": {"device": str(device)}},
-        )
-    except TypeError:
-        preprocessor, _post = make_pre_post_processors(
-            policy.config,
-            pretrained_path=None,
-            dataset_stats=stats,
-        )
+    preprocessor, _post = make_policy_processors(policy, stats, device=str(device))
     return preprocessor
 
 
