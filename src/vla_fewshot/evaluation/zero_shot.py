@@ -8,6 +8,7 @@ from vla_fewshot.calibration import load_selected_checkpoint, resolve_selected_c
 from vla_fewshot.config import EvalConfig
 from vla_fewshot.data.expected import TARGET_TASKS
 from vla_fewshot.evaluation.protocol import ProtocolError
+from vla_fewshot.reporting.constants import ZERO_SHOT_PROTOCOL_ID
 
 ZERO_SHOT_SLUGS = tuple(TARGET_TASKS)
 MIN_ROLLOUTS = 20
@@ -19,8 +20,10 @@ def assert_zero_shot_config(config: EvalConfig, *, profile: str) -> None:
     if not config.protocol.hard_reset:
         raise ProtocolError("zero-shot requires hard_reset: true")
     if profile == "full":
-        if config.protocol.protocol_id != "final_v1":
-            raise ProtocolError("zero-shot full eval must use protocol_id=final_v1")
+        if config.protocol.protocol_id != ZERO_SHOT_PROTOCOL_ID:
+            raise ProtocolError(
+                f"zero-shot full eval must use protocol_id={ZERO_SHOT_PROTOCOL_ID}"
+            )
         if config.protocol.rollouts_per_cell < MIN_ROLLOUTS:
             raise ProtocolError(
                 f"zero-shot requires ≥{MIN_ROLLOUTS} rollouts per task"

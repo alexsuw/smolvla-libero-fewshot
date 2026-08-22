@@ -37,6 +37,7 @@ def test_static_and_dev_protocols_are_not_reportable() -> None:
     assert not is_reportable_protocol("static_eval_v1")
     assert not is_reportable_protocol("dev_soft_reset")
     assert is_reportable_protocol("final_v1")
+    assert is_reportable_protocol("zero_shot_v2_seen_stats")
     assert is_reportable_protocol("final_language_control_v1")
     assert is_reportable_protocol("language_control_v1")
 

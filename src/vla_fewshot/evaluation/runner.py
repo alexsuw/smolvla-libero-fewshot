@@ -391,6 +391,12 @@ def run_static_evaluation(
         "created_at_utc": datetime.now(UTC).isoformat(),
         "wandb_enabled": False,
     }
+    normalization_suite = getattr(execute_rollout, "normalization_suite", None)
+    normalization_digest = getattr(execute_rollout, "normalization_stats_sha256", None)
+    if normalization_suite is not None:
+        manifest["normalization_suite"] = normalization_suite
+    if normalization_digest is not None:
+        manifest["normalization_stats_sha256"] = normalization_digest
     atomic_write_json(output_dir / "manifest.json", manifest, overwrite=True)
     return EvalResult(
         output_dir=output_dir,

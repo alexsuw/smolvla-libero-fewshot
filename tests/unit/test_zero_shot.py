@@ -6,7 +6,7 @@ import sys
 import pytest
 
 from vla_fewshot.config import load_config
-from vla_fewshot.evaluation.cli import run_eval_cli
+from vla_fewshot.evaluation.cli import normalization_stats_suite, run_eval_cli
 from vla_fewshot.evaluation.protocol import ProtocolError, training_episode_ids
 from vla_fewshot.evaluation.store import RolloutStore
 from vla_fewshot.evaluation.zero_shot import (
@@ -26,6 +26,7 @@ def test_zero_shot_yaml_and_empty_episode_list() -> None:
     config = load_config(ROOT / "configs" / "eval" / "zero_shot.yaml")
     assert_zero_shot_config(config, profile="full")
     assert config.protocol.rollouts_per_cell >= 20
+    assert config.protocol.protocol_id == "zero_shot_v2_seen_stats"
     assert training_episode_ids(None, task_slug="bowl_stove", n_demos=0) == []
     assert_zero_shot_cell(n_demos=0, train_seed=None, episode_ids=[])
     with pytest.raises(ProtocolError, match="0 target demonstrations"):
@@ -35,6 +36,16 @@ def test_zero_shot_yaml_and_empty_episode_list() -> None:
     final = load_config(ROOT / "configs" / "eval" / "final.yaml")
     with pytest.raises(ProtocolError, match="zero_shot"):
         assert_zero_shot_config(final, profile="full")
+
+
+def test_zero_shot_uses_seen_training_stats_and_refuses_target_stats() -> None:
+    config = load_config(ROOT / "configs" / "eval" / "zero_shot.yaml")
+    seen = load_config(ROOT / "configs" / "train" / "seen_expert.yaml")
+    target = load_config(ROOT / "configs" / "train" / "target_baseline.yaml")
+
+    assert normalization_stats_suite(config, seen) == "libero_90"
+    with pytest.raises(RuntimeError, match="seen train config"):
+        normalization_stats_suite(config, target)
 
 
 def test_frozen_seen_checkpoint_resolves_zero_shot_origin() -> None:

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import random
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -138,6 +141,24 @@ def suite_stats(*, datasets_dir: Path, repo_id: str, revision: str, suite: str) 
     return meta.stats
 
 
+def normalization_stats_sha256(stats: dict[str, Any]) -> str:
+    payload = json.dumps(stats, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def seed_live_inference(seed: int) -> None:
+    """Make policy sampling reproducible for each fixed evaluation seed."""
+
+    import numpy as np
+    import torch
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
 class LiveRolloutAdapter:
     """One SmolVLA + cached LIBERO env per task_id."""
 
@@ -149,6 +170,8 @@ class LiveRolloutAdapter:
         postprocessor: Any,
         device: Any,
         hard_reset: bool = True,
+        normalization_suite: str | None = None,
+        normalization_stats_digest: str | None = None,
     ) -> None:
         if not hard_reset:
             raise ValueError("hard_reset must stay true")
@@ -161,6 +184,8 @@ class LiveRolloutAdapter:
         self.preprocessor = preprocessor
         self.postprocessor = postprocessor
         self.device = device
+        self.normalization_suite = normalization_suite
+        self.normalization_stats_sha256 = normalization_stats_digest
         self._envs: dict[tuple[str, int], LiberoRuntime] = {}
 
     def load_checkpoint_weights(self, checkpoint: Path) -> None:
@@ -211,6 +236,7 @@ class LiveRolloutAdapter:
             configured=_replay_gate_env_task_id(spec.suite, spec.task_text),
         )
         env = self._env(spec.suite, task_id)
+        seed_live_inference(spec.eval_seed)
         observation, _info = env.reset(seed=spec.eval_seed)
         fingerprint = fingerprint_observation(observation)
         self.policy.reset()
@@ -270,12 +296,15 @@ class LiveRolloutAdapter:
             "n_demos": 0 if spec.n_demos is None else spec.n_demos,
             "train_seed": spec.train_seed,
             "eval_seed": spec.eval_seed,
+            "inference_seed": spec.eval_seed,
             "rollout_index": spec.rollout_index,
             "protocol_id": spec.protocol_id,
             "instruction_condition": spec.instruction_condition,
             "instruction_text_used": spec.instruction_text_used,
             "checkpoint_uri": checkpoint_uri,
             "checkpoint_sha256": checkpoint_sha256,
+            "normalization_suite": self.normalization_suite,
+            "normalization_stats_sha256": self.normalization_stats_sha256,
             "dataset_revision": config.dataset.revision,
             "training_episode_ids": episode_ids,
             "success": int(success),

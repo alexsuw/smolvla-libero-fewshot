@@ -18,6 +18,7 @@ from vla_fewshot.reporting.constants import (
     TARGET_METHODS,
     TARGET_TASK_SLUGS,
     TRAIN_SEEDS,
+    ZERO_SHOT_PROTOCOL_ID,
 )
 
 
@@ -124,7 +125,7 @@ def expected_final_cells() -> list[dict[str, Any]]:
                 "task_slug": task_slug,
                 "n_demos": 0,
                 "train_seed": None,
-                "protocol_id": "final_v1",
+                "protocol_id": ZERO_SHOT_PROTOCOL_ID,
             }
         )
         for method in TARGET_METHODS:

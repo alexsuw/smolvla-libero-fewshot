@@ -17,9 +17,11 @@ def test_export_zero_shot_summary(tmp_path: Path) -> None:
                 "train_seed": None,
                 "eval_seed": 1000,
                 "instruction_condition": "correct",
-                "protocol_id": "final_v1",
+                "protocol_id": "zero_shot_v2_seen_stats",
                 "success": 1,
                 "checkpoint_sha256": "abc",
+                "normalization_suite": "libero_90",
+                "normalization_stats_sha256": "stats-abc",
                 "suite": "libero_goal",
                 "eval_run_id": "z1",
             }
@@ -31,3 +33,5 @@ def test_export_zero_shot_summary(tmp_path: Path) -> None:
     markdown = paths["summary_markdown"].read_text(encoding="utf-8")
     assert "drawer_middle" in markdown
     assert "1/1" in markdown
+    assert "zero_shot_v2_seen_stats" in markdown
+    assert "normalization_suite: `libero_90`" in markdown

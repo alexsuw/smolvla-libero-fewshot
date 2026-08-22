@@ -23,6 +23,9 @@ ZERO_SHOT_EXPORT_COLUMNS = LONG_COLUMNS + (
     "created_at_utc",
     "checkpoint_uri",
     "rollout_index",
+    "inference_seed",
+    "normalization_suite",
+    "normalization_stats_sha256",
 )
 
 
@@ -125,6 +128,13 @@ def render_zero_shot_markdown(
     total_n = sum(int(row["n"]) for row in cells)
     total_s = sum(int(row["successes"]) for row in cells)
     mean = (total_s / total_n) if total_n else 0.0
+    protocols = sorted({str(row.get("protocol_id") or "") for row in records})
+    normalization_suites = sorted(
+        {str(row.get("normalization_suite") or "") for row in records}
+    )
+    normalization_hashes = sorted(
+        {str(row.get("normalization_stats_sha256") or "") for row in records}
+    )
     lines = [
         "# Zero-shot export",
         "",
@@ -132,7 +142,9 @@ def render_zero_shot_markdown(
         f"- eval_root: `{eval_root}`",
         f"- rollouts: **{len(records)}**",
         f"- overall: **{total_s}/{total_n}** ({mean:.3f})",
-        "- protocol: `final_v1`, n_demos=0, frozen seen checkpoint, no target training",
+        f"- protocol: `{','.join(protocols)}`, n_demos=0, frozen seen checkpoint, no target training",
+        f"- normalization_suite: `{','.join(normalization_suites)}`",
+        f"- normalization_stats_sha256: `{','.join(normalization_hashes)}`",
         "",
         "## Per-task success",
         "",

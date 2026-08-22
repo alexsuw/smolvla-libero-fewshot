@@ -9,7 +9,13 @@ TRAIN_SEEDS = (42, 123)
 LANGUAGE_CONTROL_PROTOCOL_IDS = frozenset(
     {"final_language_control_v1", "language_control_v1"}
 )
-REPORT_PROTOCOL_IDS = frozenset({"final_v1", "seen_probe_v1"}) | LANGUAGE_CONTROL_PROTOCOL_IDS
+ZERO_SHOT_PROTOCOL_ID = "zero_shot_v2_seen_stats"
+ZERO_SHOT_PROTOCOL_IDS = frozenset({ZERO_SHOT_PROTOCOL_ID})
+REPORT_PROTOCOL_IDS = (
+    frozenset({"final_v1", "seen_probe_v1"})
+    | ZERO_SHOT_PROTOCOL_IDS
+    | LANGUAGE_CONTROL_PROTOCOL_IDS
+)
 
 
 def is_language_control_protocol(protocol_id: str) -> bool:

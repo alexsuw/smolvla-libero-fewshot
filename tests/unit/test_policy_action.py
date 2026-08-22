@@ -1,15 +1,18 @@
+import random
 import sys
 import types
 from pathlib import Path
 
+import numpy as np
 import pytest
+import torch
 
 from vla_fewshot.env.action_adapter import (
     dataset_action_to_env,
     flatten_policy_action,
     policy_action_to_dataset,
 )
-from vla_fewshot.evaluation.live import LiveRolloutAdapter
+from vla_fewshot.evaluation.live import LiveRolloutAdapter, seed_live_inference
 
 
 class _MeanStdActionPost:
@@ -23,6 +26,16 @@ class _MeanStdActionPost:
         values = list(action)
         values[6] = values[6] * self.std + self.mean
         return values
+
+
+def test_live_inference_seed_replays_policy_noise() -> None:
+    def sample() -> tuple[float, float, float]:
+        return random.random(), float(np.random.random()), float(torch.rand(()))
+
+    seed_live_inference(1000)
+    first = sample()
+    seed_live_inference(1000)
+    assert sample() == first
 
 
 def test_missing_postprocessor_is_refused() -> None:

@@ -88,6 +88,35 @@ def _load_train_config(path: Path) -> TrainConfig:
     return loaded
 
 
+def normalization_stats_suite(
+    eval_config: EvalConfig,
+    train_config: TrainConfig,
+) -> str:
+    """Use the statistics that trained the evaluated policy.
+
+    A frozen seen policy must never be normalized with held-out target-suite
+    statistics. Target checkpoints keep their target training suite here;
+    subset-local statistics require checkpoint provenance before live M8 eval.
+    """
+
+    if eval_config.stage in {"zero_shot", "language_control"}:
+        if train_config.stage != "seen":
+            raise RuntimeError(
+                f"{eval_config.stage} requires a seen train config for normalization; "
+                f"got stage={train_config.stage}"
+            )
+        if train_config.dataset.suite != eval_config.dataset.suite_seen:
+            raise RuntimeError(
+                f"{eval_config.stage} normalization suite "
+                f"{train_config.dataset.suite!r} != configured seen suite "
+                f"{eval_config.dataset.suite_seen!r}"
+            )
+        return train_config.dataset.suite
+    if eval_config.stage == "seen_probe":
+        return eval_config.dataset.suite_seen
+    return train_config.dataset.suite
+
+
 def _eval_tasks(kind: EvalKind, args: argparse.Namespace, config: EvalConfig) -> list[str]:
     zero_shot = kind == "zero_shot" or config.stage == "zero_shot"
     if kind == "seen":
@@ -186,16 +215,18 @@ def _live_adapter(args: argparse.Namespace, config: EvalConfig, checkpoint: Path
     from vla_fewshot.evaluation.live import (
         LiveRolloutAdapter,
         load_eval_policy,
+        normalization_stats_sha256,
         suite_stats,
     )
 
     train = _load_train_config(args.train_config)
     datasets_dir = resolve_datasets_dir(args.output_root)
+    stats_suite = normalization_stats_suite(config, train)
     stats = suite_stats(
         datasets_dir=datasets_dir,
         repo_id=config.dataset.repo_id,
         revision=config.dataset.revision,
-        suite=config.dataset.suite_seen if config.stage == "seen_probe" else config.dataset.suite_target,
+        suite=stats_suite,
     )
     loaded = load_eval_policy(
         checkpoint=checkpoint,
@@ -212,6 +243,8 @@ def _live_adapter(args: argparse.Namespace, config: EvalConfig, checkpoint: Path
         postprocessor=loaded["postprocessor"],
         device=loaded["device"],
         hard_reset=config.protocol.hard_reset,
+        normalization_suite=stats_suite,
+        normalization_stats_digest=normalization_stats_sha256(stats),
     )
 
 

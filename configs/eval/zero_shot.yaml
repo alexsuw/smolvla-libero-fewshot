@@ -7,7 +7,7 @@ dataset:
   suite_seen: libero_90
   suite_target: libero_goal
 protocol:
-  protocol_id: final_v1
+  protocol_id: zero_shot_v2_seen_stats
   hard_reset: true
   rollouts_per_cell: 20
   seeds_file: configs/eval/final_seeds.json
