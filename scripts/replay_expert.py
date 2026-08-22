@@ -99,6 +99,7 @@ def _run(args: argparse.Namespace) -> int:
             seed=0,
             control_mode=env_config.control_mode,
             hard_reset=env_config.hard_reset,
+            init_state_id=spec.env_init_state_id,
         )
         output_dir = root_out / spec.slug / str(spec.episode_id)
         try:
