@@ -169,7 +169,7 @@ class LiberoRuntime:
         require_libero_runtime()
         import gymnasium as gym
         from lerobot.envs.libero import create_libero_envs
- mar
+
         if control_mode != "relative":
             raise ValueError(f"unsupported control_mode {control_mode}")
         if not hard_reset:
