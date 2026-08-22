@@ -37,13 +37,21 @@ def require_libero_runtime() -> None:
 def resolve_env_task_id(*, suite: str, task_text: str, configured: int | None) -> int:
     """Map exact instruction text to a LIBERO suite task_id.
 
-    Dataset `task_index` is not assumed equal to env task_id, especially on
-    `libero_90` where unique texts (73) do not match the 90-task benchmark.
+    Dataset `task_index` is not the env task_id. On `libero_goal` the NVIDIA
+    parquet indices are 9/7/4 while the benchmark ids are 0/1/2. On
+    `libero_90` 73 unique texts cover 90 BDDL tasks, so some languages match
+    more than one env id; `configured` is only a disambiguator among those
+    matches. When LIBERO cannot be imported, `configured` is returned as a
+    CPU-test fallback.
     """
 
-    if configured is not None:
+    try:
+        require_libero_runtime()
+    except RuntimeError:
+        if configured is None:
+            raise
         return configured
-    require_libero_runtime()
+
     from libero.libero import benchmark
 
     from vla_fewshot.data.task_text import normalize_task_text
@@ -57,11 +65,13 @@ def resolve_env_task_id(*, suite: str, task_text: str, configured: int | None) -
         for index, task in enumerate(benches[suite]().tasks)
         if normalize_task_text(task.language) == wanted
     ]
-    if len(matches) != 1:
-        raise RuntimeError(
-            f"expected one LIBERO task matching {wanted!r} in {suite}, got {matches}"
-        )
-    return matches[0]
+    if len(matches) == 1:
+        return matches[0]
+    if configured is not None and configured in matches:
+        return configured
+    raise RuntimeError(
+        f"expected one LIBERO task matching {wanted!r} in {suite}, got {matches}"
+    )
 
 
 def run_libero_doctor_probe(
@@ -154,6 +164,7 @@ class LiberoRuntime:
         seed: int = 0,
         control_mode: str = "relative",
         hard_reset: bool = True,
+        init_state_id: int | None = None,
     ) -> None:
         require_libero_runtime()
         import gymnasium as gym
@@ -166,6 +177,7 @@ class LiberoRuntime:
         self.suite = suite
         self.task_id = task_id
         self.seed = seed
+        self._pinned_init_state_id = init_state_id
         self._envs = create_libero_envs(
             task=suite,
             n_envs=1,
@@ -184,6 +196,8 @@ class LiberoRuntime:
         self._closed = False
 
     def reset(self, seed: int | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
+        if self._pinned_init_state_id is not None:
+            self._env.envs[0].init_state_id = self._pinned_init_state_id
         observation, info = self._env.reset(seed=self.seed if seed is None else seed)
         return self.policy_observation(observation), self._unbatch_info(info)
 

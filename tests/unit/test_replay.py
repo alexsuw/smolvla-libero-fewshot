@@ -43,11 +43,22 @@ def test_replay_gate_has_six_required_episodes() -> None:
     assert targets == {"drawer_middle", "bowl_stove", "wine_cabinet"}
     assert seen == {"libero_90"}
     bowl = next(item for item in gate.episodes if item.slug == "bowl_stove")
+    wine = next(item for item in gate.episodes if item.slug == "wine_cabinet")
     assert bowl.episode_id == 13
-    assert bowl.env_task_id == 7
-    assert all(item.task_local_index == 0 for item in gate.episodes)
+    assert bowl.env_task_id == 1
+    assert wine.env_task_id == 2
+    assert wine.env_init_state_id == 1
+    book = next(item for item in gate.episodes if item.slug == "seen_book_caddy")
+    assert book.episode_id == 139
+    assert book.env_task_id == 73
+    assert book.task_local_index == 1
+    assert all(
+        item.task_local_index == 0
+        for item in gate.episodes
+        if item.slug != "seen_book_caddy"
+    )
     seen_items = [item for item in gate.episodes if item.suite == "libero_90"]
-    assert all(item.env_task_id is None for item in seen_items)
+    assert {item.env_task_id for item in seen_items} == {8, 14, 73}
     splits = load_target_splits(SPLITS)
     for slug, spec in splits.tasks.items():
         gate_item = next(item for item in gate.episodes if item.slug == slug)
@@ -95,16 +106,40 @@ def test_replay_rejects_nan_actions(tmp_path: Path) -> None:
         )
 
 
-def test_configured_env_task_id_is_used_without_libero() -> None:
-    from vla_fewshot.env.libero_env import resolve_env_task_id
+def test_configured_env_task_id_is_used_without_libero(monkeypatch: pytest.MonkeyPatch) -> None:
+    from vla_fewshot.env import libero_env as libero_mod
 
+    monkeypatch.setattr(
+        libero_mod,
+        "require_libero_runtime",
+        lambda: (_ for _ in ()).throw(
+            RuntimeError("LIBERO runtime requires `uv sync --frozen --extra gpu` on Linux")
+        ),
+    )
+    assert (
+        libero_mod.resolve_env_task_id(
+            suite="libero_goal",
+            task_text="put the bowl on the stove",
+            configured=7,
+        )
+        == 7
+    )
+
+
+def test_language_match_overrides_dataset_task_index() -> None:
+    from vla_fewshot.env.libero_env import require_libero_runtime, resolve_env_task_id
+
+    try:
+        require_libero_runtime()
+    except RuntimeError:
+        pytest.skip("LIBERO runtime is not installed")
     assert (
         resolve_env_task_id(
             suite="libero_goal",
             task_text="put the bowl on the stove",
             configured=7,
         )
-        == 7
+        == 1
     )
 
 

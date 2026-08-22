@@ -2,7 +2,7 @@
   "schema_version": 1,
   "dataset_repo_id": "nvidia/LIBERO_LeRobot_v3",
   "dataset_revision": "e5907374380b8f96511957e6ba5582be52a1e179",
-  "selection_rule": "first episode_index of each listed task text; task_local_index=0 so create_libero_envs n_envs=1 uses the matching init state",
+  "selection_rule": "first episode_index of each listed task text, except seen_book_caddy where that language maps to three BDDL scenes and the first dataset episode does not match any pruned_init row. env_task_id is the LIBERO benchmark id from exact language match (not dataset task_index). env_init_state_id is the pruned_init row that reproduces the demonstration.",
   "episodes": [
     {
       "slug": "drawer_middle",
@@ -11,7 +11,8 @@
       "task_index": 9,
       "episode_id": 20,
       "task_local_index": 0,
-      "env_task_id": 9
+      "env_task_id": 0,
+      "env_init_state_id": 0
     },
     {
       "slug": "bowl_stove",
@@ -20,7 +21,8 @@
       "task_index": 7,
       "episode_id": 13,
       "task_local_index": 0,
-      "env_task_id": 7
+      "env_task_id": 1,
+      "env_init_state_id": 0
     },
     {
       "slug": "wine_cabinet",
@@ -29,7 +31,8 @@
       "task_index": 4,
       "episode_id": 6,
       "task_local_index": 0,
-      "env_task_id": 4
+      "env_task_id": 2,
+      "env_init_state_id": 1
     },
     {
       "slug": "seen_black_bowl_plate",
@@ -38,7 +41,8 @@
       "task_index": 0,
       "episode_id": 43,
       "task_local_index": 0,
-      "env_task_id": null
+      "env_task_id": 14,
+      "env_init_state_id": 5
     },
     {
       "slug": "seen_drawer_bowl",
@@ -47,16 +51,18 @@
       "task_index": 36,
       "episode_id": 126,
       "task_local_index": 0,
-      "env_task_id": null
+      "env_task_id": 8,
+      "env_init_state_id": 0
     },
     {
       "slug": "seen_book_caddy",
       "suite": "libero_90",
       "task_text": "pick up the book and place it in the front compartment of the caddy",
       "task_index": 72,
-      "episode_id": 90,
-      "task_local_index": 0,
-      "env_task_id": null
+      "episode_id": 139,
+      "task_local_index": 1,
+      "env_task_id": 73,
+      "env_init_state_id": 0
     }
   ]
 }

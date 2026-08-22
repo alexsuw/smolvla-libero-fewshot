@@ -148,9 +148,9 @@ No training, simulator replay, model load or GPU allocation is part of M2.
 
 ## M3 — Environment adapters and expert replay
 
-Status: implementation and CPU/unit acceptance complete; live simulator replay
-of the six gate trajectories is deferred until action parquet and simulator
-success are collected on this host. M1 is `validated_m1`.
+Status: complete on this host. The six-episode expert-replay gate succeeded
+with simulator `success=1` after mapping LIBERO env ids by language (not
+dataset `task_index`) and pinning `pruned_init` rows.
 
 Completed:
 
@@ -187,15 +187,21 @@ artifacts/validation/M3/parity/
 artifacts/validation/M3/acceptance.log
 ```
 
-Deferred hardware gates:
+Hardware result on 2026-08-22 (Linux GPU VM):
 
-- `uv sync --frozen --extra gpu` on Linux;
-- `python scripts/check_observation_parity.py --with-env`;
-- download action parquet (`--include-actions`) then
-  `python scripts/replay_expert.py --all-gate --save-video`.
+- action parquet downloaded (`--include-actions`, 30 files, no MP4);
+- `check_observation_parity.py --with-env` wrote `/mnt/vla/validation/M3/parity-env`;
+- `replay_expert.py --all-gate --save-video` succeeded for all six gate
+  episodes (3 `libero_goal` + 3 `libero_90`), traces and PPM frames saved.
 
-These must succeed with simulator `success=1` and saved traces/videos before
-training. Static CI cannot close this gate.
+Persistent evidence:
+
+```text
+/mnt/vla/datasets/nvidia_LIBERO_LeRobot_v3/e5907374380b8f96511957e6ba5582be52a1e179/
+/mnt/vla/validation/M2/inspect
+/mnt/vla/validation/M3/parity-env
+/mnt/vla/validation/M3/replay
+```
 
 ## M4 — SmolVLA inference and trainable scope
 
@@ -247,8 +253,8 @@ These must pass before M5 training. Static CI cannot close this gate.
 ## M5 — Training/checkpoint/resume smoke
 
 Status: implementation and CPU/static acceptance complete; live SmolVLA
-200-step training remains deferred until M3/M4 hardware gates and dataset
-videos are in place. M1 is `validated_m1`.
+200-step training remains deferred until the M4 full smoke and dataset
+videos are in place. M1 is `validated_m1`; M3 expert replay is closed.
 
 Completed:
 
@@ -560,8 +566,11 @@ uv run python scripts/eval_target.py --train-config configs/train/target_replay_
 
 ## Next milestone
 
-On a Linux CUDA VM: 200-step smoke, 100k `seen_expert`, then `eval_seen --run-dir`
-and `select_seen_checkpoint.py --write`. Do not tune on target success. Then
+M3 expert replay is closed on this VM. Next: dataset videos, then
+`smoke_inference.py --profile full`, then 200-step `configs/train/smoke.yaml`.
+Do not start 100k `seen_expert` without a separate confirmation. After that:
+`eval_seen --run-dir` and `select_seen_checkpoint.py --write`.
+Do not tune on target success. Then
 `eval_zero_shot.py` (3×20) and `eval_language_control.py` (paired correct/wrong),
 then the 18-cell `train_target` baseline, LoRA, and Replay-LoRA grids with
 `eval_target --run-dir` / `verify_baseline_eval.py`. Seen LoRA is skipped.

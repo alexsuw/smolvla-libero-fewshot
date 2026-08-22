@@ -63,9 +63,13 @@ def _run(args: argparse.Namespace) -> int:
     }
     if args.with_env:
         from vla_fewshot.data.expected import TARGET_TASKS
-        from vla_fewshot.env.libero_env import LiberoRuntime
+        from vla_fewshot.env.libero_env import LiberoRuntime, resolve_env_task_id
 
-        task_id = int(TARGET_TASKS[args.task]["task_index"])
+        task_id = resolve_env_task_id(
+            suite="libero_goal",
+            task_text=str(TARGET_TASKS[args.task]["task_text"]),
+            configured=None,
+        )
         runtime = LiberoRuntime(suite="libero_goal", task_id=task_id, seed=0)
         try:
             observation, _ = runtime.reset(seed=0)

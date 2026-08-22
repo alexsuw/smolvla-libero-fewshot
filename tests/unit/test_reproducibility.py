@@ -27,6 +27,14 @@ def test_known_token_shapes_are_redacted() -> None:
     assert token not in redact_text(f"token={token}")
 
 
+def test_tokenizers_parallelism_false_does_not_corrupt_json(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TOKENIZERS_PARALLELISM", "false")
+    payload = '{"terminated": false, "success": true}'
+    assert redact_text(payload) == payload
+
+
 def test_environment_bundle_contains_all_required_outputs(tmp_path: Path) -> None:
     platform = load_config(ROOT / "configs" / "platform" / "gpu_vm.yaml")
     revisions = load_config(ROOT / "configs" / "revisions.lock.yaml")

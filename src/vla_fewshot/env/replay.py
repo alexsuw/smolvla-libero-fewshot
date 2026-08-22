@@ -32,6 +32,7 @@ class ReplayGateEpisode(_StrictModel):
     episode_id: int = Field(ge=0)
     task_local_index: int = Field(ge=0)
     env_task_id: int | None = Field(default=None, ge=0)
+    env_init_state_id: int = Field(default=0, ge=0)
 
 
 class ReplayGate(_StrictModel):

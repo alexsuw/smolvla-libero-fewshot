@@ -25,6 +25,10 @@ _TOKEN_VALUE = re.compile(
     r"\b(?:gh[opusr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{40,}|"
     r"hf_[A-Za-z0-9]{30,}|(?:AKIA|ASIA)[0-9A-Z]{16})\b"
 )
+_TRIVIAL_ENV_VALUES = frozenset(
+    {"true", "false", "1", "0", "yes", "no", "none", "null", "on", "off"}
+)
+_SAFE_TOKEN_ENV_NAMES = frozenset({"TOKENIZERS_PARALLELISM"})
 
 
 def redact_text(value: str) -> str:
@@ -32,7 +36,11 @@ def redact_text(value: str) -> str:
 
     redacted = _TOKEN_VALUE.sub("[REDACTED]", value)
     for name, secret in os.environ.items():
-        if _SECRET_ASSIGNMENT.search(name) and secret:
+        if name in _SAFE_TOKEN_ENV_NAMES or not secret:
+            continue
+        if secret.lower() in _TRIVIAL_ENV_VALUES or len(secret) < 8:
+            continue
+        if _SECRET_ASSIGNMENT.search(name):
             redacted = redacted.replace(secret, "[REDACTED]")
     return redacted
 

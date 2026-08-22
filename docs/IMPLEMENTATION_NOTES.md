@@ -82,16 +82,26 @@ pinned upstream revisions.
 - Gripper conversion `g_env = 1 - 2 g_dataset` happens only immediately before
   `env.step`. Dataset/training stay in `[0, 1]`. Binary runtime default:
   `< 0.5 -> +1`, `>= 0.5 -> -1`.
-- `create_libero_envs(..., n_envs=1)` always uses `episode_index=0`. The replay
-  gate therefore uses the first demonstration of each task (`task_local_index=0`)
-  so the public factory's init state matches the selected episode.
-- Dataset `task_index` is not assumed equal to LIBERO env `task_id` on
-  `libero_90` (73 unique texts vs 90 benchmark tasks). Target env IDs are pinned
-  from the spec; seen env IDs are resolved by exact language match at runtime.
-- Expert replay of the six gate trajectories still requires Linux `gpu` extra,
-  EGL, action parquet (`--include-actions`), and simulator success. Static CI
-  cannot close that hardware gate. M1 is `validated_m1`; the M3 replay gate
-  still needs action parquet and simulator success.
+- `create_libero_envs(..., n_envs=1)` always constructs `episode_index=0`.
+  Pinned LeRobot then walks `init_state_id` on every `reset`. Expert replay
+  therefore pins `LiberoRuntime(init_state_id=...)` from the gate. NVIDIA
+  dataset order is not `pruned_init` order: the first `libero_goal` wine
+  episode (id 6) matches init state 1, not 0.
+- Dataset `task_index` is not the LIBERO env `task_id`. Spec table 9/7/4 are
+  parquet indices; benchmark ids for those texts are 0/1/2. Using the parquet
+  index as `task_ids=[7]` loads `turn_on_the_stove` instead of bowl-on-stove.
+  `resolve_env_task_id` matches exact language when LIBERO is importable;
+  `configured` only disambiguates duplicate `libero_90` texts (book-in-caddy
+  has env ids 73/78/81). CPU tests without LIBERO still return `configured`.
+  The first dataset episode of that duplicated language (id 90) does not
+  reproduce any of the 150 STUDY_SCENE1/2/3 init states; the gate uses episode
+  139 with env id 73 (`STUDY_SCENE1`) init 0.
+- Bootstrap sets `TOKENIZERS_PARALLELISM=false`. The env-value redactor must
+  not treat that variable (or trivial `true`/`false`) as a secret; otherwise
+  every JSON `false` in `rollouts.jsonl` becomes `[REDACTED]`.
+- Expert replay of the six gate trajectories requires Linux `gpu` extra, EGL,
+  action parquet (`--include-actions`), and simulator success. Static CI
+  cannot close that hardware gate.
 - `--save-video` writes PPM frames through the production replay path. AV1 MP4
   encoding stays on the exact FFmpeg 7.1.1 system pin from M1.
 
