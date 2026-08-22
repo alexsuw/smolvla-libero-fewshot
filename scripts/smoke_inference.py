@@ -107,9 +107,17 @@ def _run_full(
     inference = run_dummy_inference(policy=loaded["policy"], task_text=task_text)
     env_step = None
     if with_env:
-        from vla_fewshot.env.libero_env import LiberoRuntime
+        from vla_fewshot.env.libero_env import LiberoRuntime, resolve_env_task_id
 
-        runtime = LiberoRuntime(suite="libero_goal", task_id=7, seed=0)
+        runtime = LiberoRuntime(
+            suite="libero_goal",
+            task_id=resolve_env_task_id(
+                suite="libero_goal",
+                task_text=task_text,
+                configured=None,
+            ),
+            seed=0,
+        )
         try:
             runtime.reset(seed=0)
             _, _, _, _, info = runtime.step(inference["env_action"])
