@@ -227,6 +227,10 @@ pinned upstream revisions.
 - `scripts/export_seen_probe_report.py` writes CSV + markdown for every
   probe JSONL row (selection pool and leftover interrupt/5k cells) under
   `<probe-root>/report/` on durable disk, not Git. Videos are not deleted.
+- Frozen step 100000 zero-shot (`final_v1`, 3×20, empty train list) scored
+  0/60 on `drawer_middle` / `bowl_stove` / `wine_cabinet`. Failure videos
+  and traces are on durable disk. Target success must not unfreeze or
+  retune the seen checkpoint.
 - `--run-dir --steps 100000` (one step) still writes
   `<output>/step_100000/<task>/`. A single-step job that omitted the
   `step_*` prefix is a leftover tree at the probe root and is ignored

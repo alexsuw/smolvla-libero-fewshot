@@ -196,6 +196,9 @@ uv run python scripts/eval_zero_shot.py \
   --profile full \
   --output-dir "$VLA_RUNS_DIR/zero_shot" \
   --output-root "$VLA_DATASETS_DIR"
+
+uv run python scripts/export_zero_shot_report.py \
+  --eval-root "$VLA_RUNS_DIR/zero_shot"
 ```
 
 Paired language control (TODO 27). Same frozen hash, same seeds/states, only the

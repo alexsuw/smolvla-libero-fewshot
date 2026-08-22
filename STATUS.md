@@ -490,6 +490,32 @@ uv run python scripts/eval_seen.py --help
 uv run python scripts/select_seen_checkpoint.py --help
 ```
 
+## Zero-shot final eval (TODO 26)
+
+Status: complete on this VM. Frozen step 100000, 3 `libero_goal` tasks × 20
+rollouts, empty train list, hash
+`2cd510a594a87580f7368b782ca9b37332c0e5002d807093c759e95fbfb57c88`.
+
+Result: **0/20** on `drawer_middle`, `bowl_stove`, and `wine_cabinet`
+(overall 0/60, Wilson 95% [0.000, 0.161] per task). Every failure has
+video + trace. This is N=0 on the cost curve, not a reason to unfreeze
+or retune on target success.
+
+Persistent evidence:
+
+```text
+/mnt/vla/eval/zero_shot/report/summary.md
+/mnt/vla/eval/zero_shot/report/results_long.csv
+/mnt/vla/validation/TODO26/
+```
+
+Acceptance commands:
+
+```bash
+uv run python scripts/eval_zero_shot.py --help
+uv run python scripts/export_zero_shot_report.py --help
+```
+
 ## Target baseline (TODO 28 code)
 
 Status: software complete on CPU. Seen YAML is `frozen`. GPU 18-cell runs
@@ -627,7 +653,7 @@ uv run python scripts/eval_target.py --train-config configs/train/target_replay_
 
 ## Next milestone
 
-TODO 24 freeze is done (step 100000). Next is TODO 26 `eval_zero_shot.py`
-(3×20) and TODO 27 `eval_language_control.py`. Do not tune on target
-success. The 18-cell baseline waits until the persistent volume is large
-enough. Seen LoRA is skipped. Reporting (TODO 32–35) is already wired on CPU.
+TODO 26 zero-shot is done (0/60 on the three targets). Next is TODO 27
+`eval_language_control.py` (paired correct/wrong, same frozen hash).
+Do not retune on the zero-shot zeros. The 18-cell baseline waits until
+the persistent volume is large enough. Seen LoRA is skipped.
