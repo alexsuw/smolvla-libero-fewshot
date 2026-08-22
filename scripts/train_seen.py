@@ -45,7 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--protocol",
         choices=("train", "resume-compare"),
         default="train",
-        help="resume-compare runs 0\u2192200 vs 0\u2192100\u2192200 with a fresh process.",
+        help="resume-compare runs 0→200 vs 0→100→200 with a fresh process.",
     )
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--stop-after", type=int)
