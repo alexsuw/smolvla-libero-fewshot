@@ -16,7 +16,11 @@ from vla_fewshot.storage.sync import execute_local_mirror
 from vla_fewshot.training.compare import run_resume_compare_protocol
 from vla_fewshot.training.full import require_full_training_runtime
 from vla_fewshot.training.full_loop import prepare_full_training, run_full_training
-from vla_fewshot.training.resume import assert_override_allowlist
+from vla_fewshot.training.resume import (
+    ResumeError,
+    assert_override_allowlist,
+    assert_resume_compatible,
+)
 from vla_fewshot.training.trainer import run_static_training
 
 
@@ -41,7 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--protocol",
         choices=("train", "resume-compare"),
         default="train",
-        help="resume-compare runs 0→200 vs 0→100→200 with a fresh process.",
+        help="resume-compare runs 0\u2192200 vs 0\u2192100\u2192200 with a fresh process.",
     )
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--stop-after", type=int)
@@ -107,6 +111,13 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as error:
         parser.error(f"invalid config: {error}")
 
+    if args.resume_from is not None:
+        try:
+            config = assert_resume_compatible(args.resume_from, config)
+        except ResumeError as error:
+            print(str(error), file=sys.stderr)
+            return 1
+
     assert_override_allowlist(
         {
             "log_freq": args.log_freq,
@@ -141,7 +152,7 @@ def main(argv: list[str] | None = None) -> int:
                 run_id=run_dir.name,
                 prepared=prepared,
             )
-        except (RuntimeError, FileNotFoundError, FileExistsError) as error:
+        except (RuntimeError, FileNotFoundError, FileExistsError, ResumeError) as error:
             print(str(error), file=sys.stderr)
             return 1
         mirror = args.backup_dir or args.destination
