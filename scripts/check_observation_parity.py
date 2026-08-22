@@ -30,7 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _synthetic_frame(seed: int) -> list[list[list[int]]:
+def _synthetic_frame(seed: int) -> list[list[list[int]]]:
     return [
         [[(seed + row + col) % 256, row * 8, col * 8] for col in range(8)]
         for row in range(8)
