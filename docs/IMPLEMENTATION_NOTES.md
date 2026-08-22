@@ -42,8 +42,12 @@ pinned upstream revisions.
 - FFmpeg `7.1.1` is a system pin, not equivalent to
   `imageio-ffmpeg==0.6.0` (Linux bundle 7.0.2). Bootstrap does not silently
   substitute it; full doctor requires exact 7.1.1 and a real AV1 round-trip.
-- No Linux GPU was available during M1 implementation. Revision status remains
-  `resolved_m1_pending_hardware`; static doctor output cannot close M1.
+- Full doctor on the first Linux GPU VM closed M1: revision status is
+  `validated_m1`. Host needs exact FFmpeg 7.1.1 with libaom (Ubuntu 24.04 apt
+  ships 6.1.1), NVIDIA EGL userspace (`libnvidia-gl` matching the driver), and
+  membership in `video`/`render` for `/dev/dri`. The Linux `gpu` extra also
+  installs a third-party site-packages `tests` package; repository
+  `tests/__init__.py` makes local helpers win.
 
 ## M2 implementation
 
@@ -78,15 +82,26 @@ pinned upstream revisions.
 - Gripper conversion `g_env = 1 - 2 g_dataset` happens only immediately before
   `env.step`. Dataset/training stay in `[0, 1]`. Binary runtime default:
   `< 0.5 -> +1`, `>= 0.5 -> -1`.
-- `create_libero_envs(..., n_envs=1)` always uses `episode_index=0`. The replay
-  gate therefore uses the first demonstration of each task (`task_local_index=0`)
-  so the public factory's init state matches the selected episode.
-- Dataset `task_index` is not assumed equal to LIBERO env `task_id` on
-  `libero_90` (73 unique texts vs 90 benchmark tasks). Target env IDs are pinned
-  from the spec; seen env IDs are resolved by exact language match at runtime.
-- Expert replay of the six gate trajectories still requires Linux `gpu` extra,
-  EGL, action parquet (`--include-actions`), and simulator success. Static CI
-  cannot close that hardware gate. M1 remains `resolved_m1_pending_hardware`.
+- `create_libero_envs(..., n_envs=1)` always constructs `episode_index=0`.
+  Pinned LeRobot then walks `init_state_id` on every `reset`. Expert replay
+  therefore pins `LiberoRuntime(init_state_id=...)` from the gate. NVIDIA
+  dataset order is not `pruned_init` order: the first `libero_goal` wine
+  episode (id 6) matches init state 1, not 0.
+- Dataset `task_index` is not the LIBERO env `task_id`. Spec table 9/7/4 are
+  parquet indices; benchmark ids for those texts are 0/1/2. Using the parquet
+  index as `task_ids=[7]` loads `turn_on_the_stove` instead of bowl-on-stove.
+  `resolve_env_task_id` matches exact language when LIBERO is importable;
+  `configured` only disambiguates duplicate `libero_90` texts (book-in-caddy
+  has env ids 73/78/81). CPU tests without LIBERO still return `configured`.
+  The first dataset episode of that duplicated language (id 90) does not
+  reproduce any of the 150 STUDY_SCENE1/2/3 init states; the gate uses episode
+  139 with env id 73 (`STUDY_SCENE1`) init 0.
+- Bootstrap sets `TOKENIZERS_PARALLELISM=false`. The env-value redactor must
+  not treat that variable (or trivial `true`/`false`) as a secret; otherwise
+  every JSON `false` in `rollouts.jsonl` becomes `[REDACTED]`.
+- Expert replay of the six gate trajectories requires Linux `gpu` extra, EGL,
+  action parquet (`--include-actions`), and simulator success. Static CI
+  cannot close that hardware gate.
 - `--save-video` writes PPM frames through the production replay path. AV1 MP4
   encoding stays on the exact FFmpeg 7.1.1 system pin from M1.
 
@@ -128,9 +143,18 @@ pinned upstream revisions.
   Weights are `weights.pt`; the static path still uses JSON toy weights.
   Frame decode stays in-process so the index cursor can resume exactly;
   `training.num_workers` is recorded but not used for DataLoader workers.
+  `save_torch_checkpoint` must import `file_checksums` / `sha256_file` /
+  `verify_file_checksums`; a missing import fails the first GPU save at
+  `every_steps` (this host: step 100, run left at
+  `$VLA_RUNS_DIR/seen_smoke_200`). LeRobot may warn that `torchcodec` cannot
+  load and fall back to `pyav`; that is not a substitute for the FFmpeg 7.1.1
+  pin used for eval videos.
 - Resume may override only `log_freq`, `destination`, `stop_after`,
   `backup_dir`, and `output_dir`. Dataset revision, split, trainable scope,
-  optimizer, scheduler, batch, and seed are frozen.
+  optimizer, scheduler, batch, and seed are frozen. YAML `physical_batch_size:
+  auto_fit` / `gradient_accumulation: auto` is not a contract change: resume
+  loads the integers already frozen in the checkpoint and skips a second
+  auto-fit so a crash cannot pick a different microbatch.
 - `sync_artifacts.py` default is dry-run and never deletes. Local directory
   destinations keep the M5 mirror. `file://` and `s3://` destinations use the
   object protocol: temporary prefix, size/checksum verify, remote
@@ -185,8 +209,8 @@ pinned upstream revisions.
   figures are SVG with x ticks `{0,5,10,25}` so the CPU extra does not need
   matplotlib. Spec PDF names remain a future optional export.
 - `make_report_tables.py --bundle` checksums markdown/tables/figures only.
-- TODO 23 **code** is the project SmolVLA trainer. The 100k GPU run itself
-  still waits on a Linux CUDA VM. TODO 24 **code** is probe eval + selection;
+- TODO 23 **code** is the project SmolVLA trainer. The 100k GPU run is the
+  live `seen_expert` job after the 200-step smoke. TODO 24 **code** is probe eval + selection;
   live probe rollouts wait on that same VM. TODO 25 (seen LoRA) is skipped.
   TODO 26 **code** is `eval_zero_shot.py` (3 tasks × ≥20, empty train list,
   frozen seen hash).   TODO 27 **code** is `eval_language_control.py` (paired
@@ -236,7 +260,7 @@ pinned upstream revisions.
 - Wrap uses `peft.LoraConfig` + `get_peft_model` after origin `weights.pt`
   load and **before** the allowlist/optimizer. We do not call `lerobot-train`.
 - Target modules are the pinned expert `q_proj`/`v_proj` regex
-  `model\.vlm_with_expert\.lm_expert\..*\.(q|v)_proj`. This is the expert half of
+  `model\\.vlm_with_expert\\.lm_expert\\..*\\.(q|v)_proj`. This is the expert half of
   LeRobot `SmolVLAPolicy._get_default_peft_targets`. State/action projections
   stay full-rank because `target_lora.yaml` sets `train_state_projection` /
   `train_action_projections` true and `train_action_expert` false.
