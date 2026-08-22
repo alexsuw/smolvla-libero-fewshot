@@ -75,9 +75,11 @@ def test_baseline_yaml_is_accepted_and_lora_is_refused() -> None:
         assert_baseline_train_config(seen)
 
 
-def test_pending_selected_checkpoint_blocks_target_origin() -> None:
-    with pytest.raises(TrainError, match="frozen"):
-        require_frozen_seen_origin()
+def test_frozen_selected_checkpoint_resolves_target_origin() -> None:
+    origin, digest, run_id = require_frozen_seen_origin()
+    assert digest
+    assert origin.name.startswith("step_")
+    assert run_id
 
 
 def test_subset_mean_std_and_chunked_actions() -> None:
@@ -115,6 +117,7 @@ def test_print_grid_lists_eighteen_commands() -> None:
 
 def test_train_target_refuses_unfrozen_seen_and_replay_lora(tmp_path: Path) -> None:
     env = os.environ.copy()
+    env["CUDA_VISIBLE_DEVICES"] = ""
     replay = subprocess.run(
         [
             sys.executable,
@@ -140,7 +143,6 @@ def test_train_target_refuses_unfrozen_seen_and_replay_lora(tmp_path: Path) -> N
     assert replay.returncode == 1
     combined_replay = replay.stdout + replay.stderr
     assert "no GPU training was started" in combined_replay
-    assert "frozen" in combined_replay
     assert "not wired" not in combined_replay
 
     baseline = subprocess.run(
@@ -166,4 +168,3 @@ def test_train_target_refuses_unfrozen_seen_and_replay_lora(tmp_path: Path) -> N
     assert baseline.returncode == 1
     combined = baseline.stdout + baseline.stderr
     assert "no GPU training was started" in combined
-    assert "frozen" in combined

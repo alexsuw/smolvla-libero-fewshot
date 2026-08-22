@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from vla_fewshot.config import (
@@ -32,6 +33,26 @@ def load_selected_checkpoint(
     if not isinstance(loaded, SelectedCheckpointConfig):
         raise TypeError(f"{path} is not a selected-checkpoint config")
     return loaded
+
+
+def resolve_selected_checkpoint_path(
+    selected: SelectedCheckpointConfig,
+    *,
+    checkpoint: Path | None = None,
+) -> Path:
+    """Resolve the frozen origin. Tracked YAML stores a run-relative uri."""
+
+    if checkpoint is not None:
+        return Path(checkpoint)
+    if selected.uri is None:
+        raise ValueError("selected checkpoint uri is missing")
+    raw = Path(selected.uri)
+    if raw.is_absolute():
+        return raw
+    runs = os.environ.get("VLA_RUNS_DIR")
+    if runs and selected.run_id:
+        return Path(runs) / selected.run_id / raw
+    return raw
 
 
 def _close(left: float, right: float) -> bool:

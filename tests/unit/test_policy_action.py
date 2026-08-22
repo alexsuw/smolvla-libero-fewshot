@@ -1,3 +1,7 @@
+import sys
+import types
+from pathlib import Path
+
 import pytest
 
 from vla_fewshot.env.action_adapter import (
@@ -68,3 +72,39 @@ def test_env_space_gripper_without_unnormalize_is_still_refused() -> None:
 def test_flatten_takes_unpadded_prefix() -> None:
     padded = [[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 9.0, 9.0]]
     assert flatten_policy_action(padded) == [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+
+
+def test_load_checkpoint_weights_swaps_state_dict(tmp_path: Path, monkeypatch) -> None:
+    class Policy:
+        def __init__(self) -> None:
+            self.state = None
+            self.reset_calls = 0
+
+        def load_state_dict(self, weights):
+            self.state = weights
+
+        def eval(self) -> None:
+            return None
+
+        def reset(self) -> None:
+            self.reset_calls += 1
+
+    policy = Policy()
+    adapter = LiveRolloutAdapter(
+        policy=policy,
+        preprocessor=object(),
+        postprocessor=object(),
+        device="cpu",
+    )
+    checkpoint = tmp_path / "ckpt"
+    checkpoint.mkdir()
+    (checkpoint / "weights.pt").write_bytes(b"x")
+    monkeypatch.setattr(
+        "vla_fewshot.evaluation.live.is_complete_checkpoint", lambda _path: True
+    )
+    fake_torch = types.ModuleType("torch")
+    fake_torch.load = lambda *args, **kwargs: {"expert": 1}
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    adapter.load_checkpoint_weights(checkpoint)
+    assert policy.state == {"expert": 1}
+    assert policy.reset_calls == 1

@@ -58,6 +58,32 @@ def parse_step_directory_name(name: str) -> int | None:
     return int(suffix)
 
 
+STAGED_PROBE_STEPS: tuple[int, ...] = (20000, 40000, 60000, 80000, 100000)
+STAGE1_PROBE_ROLLOUTS = 5
+STAGE2_PROBE_ROLLOUTS = 10
+STAGE2_FINALIST_COUNT = 2
+
+
+def parse_checkpoint_steps(raw: str) -> list[int]:
+    parts = [item.strip() for item in raw.split(",") if item.strip()]
+    if not parts:
+        raise SelectionError("checkpoint --steps is empty")
+    steps: list[int] = []
+    for part in parts:
+        if not part.isdigit():
+            raise SelectionError(f"invalid checkpoint step: {part!r}")
+        steps.append(int(part))
+    if len(set(steps)) != len(steps):
+        raise SelectionError(f"duplicate checkpoint steps: {steps}")
+    return steps
+
+
+def rank_probe_scores(scores: Sequence[ProbeScore]) -> list[ProbeScore]:
+    """Higher mean first; earlier step breaks ties. Never reads target tasks."""
+
+    return sorted(scores, key=lambda score: (-score.mean_success, score.step))
+
+
 def list_complete_checkpoints(run_dir: Path) -> list[tuple[int, Path]]:
     root = checkpoints_root(run_dir)
     found: list[tuple[int, Path]] = []
@@ -112,6 +138,7 @@ def select_seen_checkpoint(
     probe_slugs: Sequence[str],
     tolerance: float,
     fallback_step: int,
+    indistinguishable_fallback: bool = True,
 ) -> SelectionResult:
     """Earliest checkpoint within tolerance of best probe mean; else fallback."""
 
@@ -147,7 +174,7 @@ def select_seen_checkpoint(
         f"{tolerance} mean success of the best probe. If noise prevents a "
         f"distinction, use step {fallback_step}. Never look at target-task success."
     )
-    if all_indistinguishable:
+    if indistinguishable_fallback and all_indistinguishable:
         fallback = next((score for score in stable if score.step == fallback_step), None)
         if fallback is None:
             raise SelectionError(
@@ -183,11 +210,16 @@ def collect_probe_scores(
     run_dir: Path,
     probe_root: Path,
     probe_slugs: Sequence[str],
+    steps: Sequence[int] | None = None,
+    min_rollouts: int = 1,
 ) -> list[ProbeScore]:
     """Read `{probe_root}/step_XXXXXX/<slug>/summary.json` plus run checkpoints."""
 
+    wanted = set(steps) if steps is not None else None
     scores: list[ProbeScore] = []
     for step, ckpt in list_complete_checkpoints(run_dir):
+        if wanted is not None and step not in wanted:
+            continue
         cell_root = probe_root / step_directory_name(step)
         if not cell_root.is_dir():
             continue
@@ -212,6 +244,9 @@ def collect_probe_scores(
             per_task[slug] = float(summary["success_rate"])
             n_rollouts[slug] = int(summary["n_rollouts"])
             protocol_ids[slug] = str(summary["protocol_id"])
+            if n_rollouts[slug] < min_rollouts:
+                complete = False
+                break
         if not complete:
             continue
         unstable = metrics_nonfinite_at_step(run_dir, step)

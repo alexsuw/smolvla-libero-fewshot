@@ -206,11 +206,31 @@ pinned upstream revisions.
   dataset `[0, 1]` gate. After unnormalize, gripper is clipped to `[0, 1]`
   because pinned UnnormalizerProcessorStep does not clip; env-space `-1`
   without unnormalize is still refused.
-- Seen checkpoint selection scores only the three probe slugs, drops NaN/
-  unstable rows, rejects `static_*` protocols and any target-task slug, then
-  takes the earliest checkpoint within `tolerance_success=0.02` of the best
-  mean. If every stable score is inside that band, the fallback is step
-  100000. `select_seen_checkpoint.py` is dry-run until `--write`.
+- Seen checkpoint selection is two-stage on `libero_90` probes only:
+  evaluate steps 20000/40000/60000/80000/100000 with 5 seeds, keep the
+  top two means, extend those to 10 seeds, then take the earliest
+  finalist within `tolerance_success=0.02`. Interrupt and other 5k
+  checkpoints stay on disk and are not scored. The previous
+  all-indistinguishable → step 100000 fallback is disabled for this
+  staged finalist pair. Target-task slugs remain fatal.
+- After a 5-seed mean tie (80k vs 100k both 12/15), 100k was also
+  extended to 10 seeds. 10-seed means: 60k 0.700, 80k 0.767, 100k 0.800.
+  100k is outside the 0.02 band of 80k, so the freeze is step 100000.
+  Tracked YAML stores `uri: checkpoints/step_100000` relative to
+  `VLA_RUNS_DIR` / `run_id`, not a `/mnt/vla` path.
+- Live eval overlaps libaom-av1 encode of rollout N with the GPU of
+  rollout N+1 (`ThreadPoolExecutor`; RGB frames are copied first). JSONL
+  is appended only after the video exists so a killed job cannot skip a
+  rollout that has no durable video. Failures are still never dropped.
+  Non-LoRA eval reuses the loaded SmolVLA + LIBERO envs across
+  checkpoints and only swaps `weights.pt`.
+- `scripts/export_seen_probe_report.py` writes CSV + markdown for every
+  probe JSONL row (selection pool and leftover interrupt/5k cells) under
+  `<probe-root>/report/` on durable disk, not Git. Videos are not deleted.
+- `--run-dir --steps 100000` (one step) still writes
+  `<output>/step_100000/<task>/`. A single-step job that omitted the
+  `step_*` prefix is a leftover tree at the probe root and is ignored
+  for selection.
 
 
 ## Object storage, predictions, calibration, reporting

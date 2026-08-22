@@ -5,6 +5,7 @@ import sys
 
 import pytest
 
+from vla_fewshot.calibration import load_selected_checkpoint
 from vla_fewshot.data.splits import load_target_splits
 from vla_fewshot.evaluation.baseline_eval import (
     BaselineEvalError,
@@ -58,6 +59,12 @@ def _write_complete_toy_ckpt(run_dir: Path, step: int) -> None:
         CHECKPOINT_OPTIMIZER_NAME,
     ):
         (directory / name).write_text("{}\n", encoding="utf-8")
+    selected = load_selected_checkpoint()
+    if selected.sha256:
+        (run_dir / MANIFEST_NAME).write_text(
+            json.dumps({"origin_checkpoint_sha256": selected.sha256}) + "\n",
+            encoding="utf-8",
+        )
 
 
 def test_print_grid_lists_eighteen_eval_commands() -> None:
@@ -119,6 +126,7 @@ def test_complete_checkpoint_eval_is_accepted(tmp_path: Path) -> None:
                 "task_slug": "bowl_stove",
                 "n_demos": 5,
                 "train_seed": 42,
+                "origin_checkpoint_sha256": load_selected_checkpoint().sha256,
             }
         ),
         encoding="utf-8",

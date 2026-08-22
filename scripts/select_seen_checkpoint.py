@@ -12,6 +12,7 @@ from vla_fewshot.evaluation.freeze import FreezeError, freeze_selected_checkpoin
 from vla_fewshot.evaluation.select import (
     SelectionError,
     collect_probe_scores,
+    parse_checkpoint_steps,
     select_seen_checkpoint,
 )
 from vla_fewshot.reproducibility import atomic_write_json
@@ -21,6 +22,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--probe-root", type=Path, required=True)
+    parser.add_argument(
+        "--steps",
+        help="Optional comma-separated steps to score. Interrupt/other steps are ignored.",
+    )
+    parser.add_argument(
+        "--min-rollouts",
+        type=int,
+        default=1,
+        help="Ignore a checkpoint until every probe slug has at least this many rollouts.",
+    )
     parser.add_argument(
         "--output",
         type=Path,
@@ -49,6 +60,8 @@ def main(argv: list[str] | None = None) -> int:
             run_dir=args.run_dir,
             probe_root=args.probe_root,
             probe_slugs=cal.seen_probe_slugs,
+            steps=parse_checkpoint_steps(args.steps) if args.steps else None,
+            min_rollouts=args.min_rollouts,
         )
         result = select_seen_checkpoint(
             scores,

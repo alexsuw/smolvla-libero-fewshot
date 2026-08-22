@@ -35,7 +35,7 @@ eval_rollouts_per_cell: 20
 eval_seed_start: 1000
 eval_seed_end: 1019
 checkpoint_selection_rule: >
-  Exclude NaN or unstable checkpoints. Score only the three frozen
-  libero_90 seen-probe tasks. Take the earliest checkpoint within 0.02
-  mean success of the best probe. If noise prevents a distinction, use
-  step 100000. Never look at target-task success.
+  libero_90 probes only (never libero_goal). Stage 1 evaluates steps
+  20000,40000,60000,80000,100000 with 5 seeds. Stage 2 extends 60k, 80k,
+  and 100k to 10 seeds. Take the earliest 10-seed score within 0.02 of
+  the best mean. Never look at target-task success.

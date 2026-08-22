@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vla_fewshot.calibration import load_selected_checkpoint
+from vla_fewshot.calibration import load_selected_checkpoint, resolve_selected_checkpoint_path
 from vla_fewshot.config import TrainConfig
 from vla_fewshot.data.expected import DEMO_BUDGETS, TARGET_TASKS
 from vla_fewshot.data.splits import TargetSplits
@@ -41,7 +41,7 @@ def require_frozen_seen_origin(*, checkpoint: Path | None = None) -> tuple[Path,
             "target training waits until configs/selected_seen_checkpoint.yaml "
             "is frozen from seen probes. no GPU training was started."
         )
-    origin = Path(checkpoint) if checkpoint is not None else Path(selected.uri)
+    origin = resolve_selected_checkpoint_path(selected, checkpoint=checkpoint)
     return origin, selected.sha256, selected.run_id
 
 

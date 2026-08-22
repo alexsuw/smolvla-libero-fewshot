@@ -159,27 +159,31 @@ credentials are configured, the durable VM disk is the only checkpoint copy.
 
 ## Seen probes and checkpoint freeze (TODO 24)
 
-После seen-pretrain. Только `libero_90` probe tasks; target eval закрыт, пока YAML
-не `status: frozen`.
+После seen-pretrain. Только `libero_90` probe tasks. This VM freeze is
+`status: frozen` at step 100000. Re-run selection only if the YAML is pending.
 
 ```bash
-# All complete checkpoints × three frozen probe slugs
-uv run python scripts/eval_seen.py \
+# Two-stage: 20k/40k/60k/80k/100k × 3 probes × 5 seeds, then top two × 10
+uv run python scripts/eval_seen_staged.py \
   --config configs/eval/seen_probe.yaml \
   --profile full \
-  --run-dir "$VLA_RUNS_DIR/seen_expert_100k" \
+  --run-dir "$VLA_RUNS_DIR/<seen_run>" \
   --output-dir "$VLA_RUNS_DIR/seen_probes" \
   --output-root "$VLA_DATASETS_DIR"
 
-# Dry-run selection, then write the freeze
-uv run python scripts/select_seen_checkpoint.py \
-  --run-dir "$VLA_RUNS_DIR/seen_expert_100k" \
+uv run python scripts/watch_seen_probes.py \
   --probe-root "$VLA_RUNS_DIR/seen_probes"
 
+uv run python scripts/export_seen_probe_report.py \
+  --probe-root "$VLA_RUNS_DIR/seen_probes"
+# CSV + markdown land in <probe-root>/report/ (durable disk, not Git)
+
+# Dry-run selection on the staged finalists, then write the freeze
 uv run python scripts/select_seen_checkpoint.py \
-  --run-dir "$VLA_RUNS_DIR/seen_expert_100k" \
+  --run-dir "$VLA_RUNS_DIR/<seen_run>" \
   --probe-root "$VLA_RUNS_DIR/seen_probes" \
-  --write
+  --steps 20000,40000,60000,80000,100000 \
+  --min-rollouts 10
 ```
 
 Zero-shot from the frozen seen checkpoint (TODO 26). Empty train list, 3×20,

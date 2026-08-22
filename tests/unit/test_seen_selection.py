@@ -87,6 +87,40 @@ def test_indistinguishable_scores_use_fallback_100k() -> None:
     assert result.used_fallback is True
 
 
+def test_staged_finalists_skip_100k_fallback_and_take_earliest_in_band() -> None:
+    from vla_fewshot.evaluation.select import rank_probe_scores
+
+    scores = [_uniform(20000, 0.20), _uniform(80000, 0.50), _uniform(100000, 0.51)]
+    ranked = rank_probe_scores(scores)
+    assert [item.step for item in ranked[:2]] == [100000, 80000]
+    result = select_seen_checkpoint(
+        ranked[:2],
+        probe_slugs=SLUGS,
+        tolerance=0.02,
+        fallback_step=100000,
+        indistinguishable_fallback=False,
+    )
+    assert result.score.step == 80000
+    assert result.used_fallback is False
+
+
+def test_parse_checkpoint_steps_and_overlay_rollouts() -> None:
+    from vla_fewshot.evaluation.protocol import seeds_for_config
+    from vla_fewshot.evaluation.runner import overlay_eval_rollouts
+    from vla_fewshot.evaluation.select import parse_checkpoint_steps
+
+    assert parse_checkpoint_steps("20000,40000,100000") == [20000, 40000, 100000]
+    with pytest.raises(SelectionError, match="duplicate"):
+        parse_checkpoint_steps("20000,20000")
+    config = load_config(ROOT / "configs" / "eval" / "seen_probe.yaml")
+    five = overlay_eval_rollouts(config, 5)
+    assert five.protocol.rollouts_per_cell == 5
+    assert five.protocol.protocol_id == "seen_probe_v1"
+    assert seeds_for_config(five, project_root=ROOT) == list(range(1000, 1005))
+    ten = overlay_eval_rollouts(config, 10)
+    assert seeds_for_config(ten, project_root=ROOT) == list(range(1000, 1010))
+
+
 def test_nan_checkpoints_are_excluded() -> None:
     scores = [_uniform(20000, 0.9, unstable=True), _uniform(100000, 0.2)]
     result = select_seen_checkpoint(
@@ -110,6 +144,7 @@ def test_freeze_is_dry_run_until_write(tmp_path: Path) -> None:
     written = freeze_selected_checkpoint(output, result, run_id="run_a", write=True)
     assert output.exists()
     assert written.sha256 == "a" * 64
+    assert written.uri == "checkpoints/step_100000"
     freeze_selected_checkpoint(output, result, run_id="run_a", write=True)
     other = ProbeScore(
         step=40000,
@@ -176,10 +211,11 @@ def test_collect_probe_scores_matches_checkpoint_hash(tmp_path: Path) -> None:
     assert selected.score.step == 100
 
 
-def test_pending_selected_yaml_has_no_hash() -> None:
+def test_selected_yaml_is_frozen_from_libero_90_probes() -> None:
     selected = load_selected_checkpoint()
-    assert selected.status == "pending_seen_pretrain"
-    assert selected.sha256 is None
-    assert selected.step is None
+    assert selected.status == "frozen"
+    assert selected.step == 100000
+    assert selected.sha256 is not None and len(selected.sha256) == 64
+    assert selected.uri is not None
     cal = load_calibration()
     assert list(cal.seen_probe_slugs) == list(SLUGS)

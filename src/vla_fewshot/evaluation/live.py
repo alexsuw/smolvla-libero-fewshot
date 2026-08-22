@@ -163,6 +163,22 @@ class LiveRolloutAdapter:
         self.device = device
         self._envs: dict[tuple[str, int], LiberoRuntime] = {}
 
+    def load_checkpoint_weights(self, checkpoint: Path) -> None:
+        """Swap `weights.pt` without reloading the hub SmolVLA or LIBERO envs."""
+
+        import torch
+
+        if not (checkpoint.is_dir() and is_complete_checkpoint(checkpoint)):
+            raise RuntimeError(f"full eval expects a complete checkpoint directory, got {checkpoint}")
+        weights = torch.load(
+            checkpoint / CHECKPOINT_WEIGHTS_PT_NAME,
+            map_location=self.device,
+            weights_only=True,
+        )
+        self.policy.load_state_dict(weights)
+        self.policy.eval()
+        self.policy.reset()
+
     def close(self) -> None:
         for env in self._envs.values():
             env.close()

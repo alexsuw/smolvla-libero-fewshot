@@ -1,14 +1,19 @@
 kind: selected_checkpoint
 schema_version: 1
-status: pending_seen_pretrain
+status: frozen
 protocol_id: seen_probe_v1
 tolerance_success: 0.02
 fallback_step: 100000
 selection_rule: >
-  Exclude NaN or unstable checkpoints. Score only the three frozen
-  libero_90 seen-probe tasks. Take the earliest checkpoint within 0.02
-  mean success of the best probe. If noise prevents a distinction, use
-  step 100000. Never look at target-task success.
-sha256: null
-uri: null
-run_id: null
+  libero_90 probes only (never libero_goal). Stage 1 evaluates steps
+  20000,40000,60000,80000,100000 with 5 seeds. Stage 2 extends 60k, 80k,
+  and 100k to 10 seeds (100k added after a 5-seed mean tie with 80k).
+  Take the earliest of those 10-seed scores within 0.02 of the best mean.
+  If those three remain indistinguishable, use step 100000. Interrupt and
+  other 5k checkpoints are kept on disk and ignored. Never look at
+  target-task success.
+sha256: 2cd510a594a87580f7368b782ca9b37332c0e5002d807093c759e95fbfb57c88
+uri: checkpoints/step_100000
+run_id: seen__expert__libero90__nall__s42__20260822T010019Z__gd4b8fb8
+step: 100000
+probe_mean_success: 0.8

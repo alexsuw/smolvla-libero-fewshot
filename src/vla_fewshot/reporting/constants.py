@@ -30,3 +30,19 @@ LONG_COLUMNS = (
     "checkpoint_sha256",
     "suite",
 )
+PROBE_EXPORT_COLUMNS = LONG_COLUMNS + (
+    "step",
+    "in_selection_pool",
+    "video_uri",
+    "trace_uri",
+    "episode_length",
+    "wall_time_seconds",
+    "task_text",
+    "instruction_text_used",
+    "failure_category",
+    "created_at_utc",
+    "checkpoint_uri",
+    "rollout_index",
+    "terminated",
+    "truncated",
+)

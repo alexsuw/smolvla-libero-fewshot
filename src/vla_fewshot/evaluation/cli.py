@@ -17,14 +17,32 @@ from vla_fewshot.evaluation.full import (
     require_full_evaluation_runtime,
 )
 from vla_fewshot.evaluation.runner import (
+    overlay_eval_rollouts,
     run_static_evaluation,
     static_smoke_config,
 )
-from vla_fewshot.evaluation.select import list_complete_checkpoints
+from vla_fewshot.evaluation.select import list_complete_checkpoints, parse_checkpoint_steps
 from vla_fewshot.storage.layout import step_directory_name
 
 EvalKind = Literal["target", "zero_shot", "language_control", "seen"]
 TARGET_SLUGS = ("drawer_middle", "bowl_stove", "wine_cabinet")
+
+
+def eval_cell_output_dir(
+    output_dir: Path,
+    *,
+    label: str,
+    task: str,
+    run_dir: bool,
+    n_tasks: int,
+) -> Path:
+    """`--run-dir` cells always live under `step_XXXXXX/<task>`, even for one step."""
+
+    if run_dir:
+        return output_dir / label / task
+    if n_tasks > 1:
+        return output_dir / task
+    return output_dir
 
 
 def add_eval_arguments(
@@ -47,7 +65,7 @@ def add_eval_arguments(
     parser.add_argument(
         "--run-dir",
         type=Path,
-        help="Evaluate every complete checkpoint under a training run.",
+        help="Evaluate complete checkpoints under a training run. Optional --steps filters.",
     )
     parser.add_argument(
         "--split",
@@ -197,6 +215,10 @@ def _live_adapter(args: argparse.Namespace, config: EvalConfig, checkpoint: Path
     )
 
 
+def _can_reuse_eval_weights(args: argparse.Namespace) -> bool:
+    return _load_train_config(args.train_config).method not in {"lora", "replay_lora"}
+
+
 def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description={
@@ -221,6 +243,15 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
         parser.add_argument("--task", choices=TARGET_SLUGS)
     else:
         parser.add_argument("--task", default=None)
+        parser.add_argument(
+            "--steps",
+            help="Comma-separated checkpoint steps to evaluate under --run-dir.",
+        )
+        parser.add_argument(
+            "--rollouts",
+            type=int,
+            help="Override protocol.rollouts_per_cell (prefix of tracked eval seeds).",
+        )
     parser.add_argument("--data-config", type=Path, default=Path("configs/data.yaml"))
     parser.add_argument("--output-root", type=Path)
     parser.add_argument("--train-config", type=Path, default=train_default)
@@ -268,12 +299,19 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
             print(str(error), file=sys.stderr)
             return 1
 
+    if getattr(args, "steps", None) and args.run_dir is None:
+        parser.error("--steps requires --run-dir")
+
     if args.output_dir is None:
         parser.error("--output-dir is required")
 
     config = load_eval_config(args.config)
     if args.profile == "static":
+        if getattr(args, "rollouts", None) is not None:
+            parser.error("--rollouts cannot be combined with --profile static")
         config = static_smoke_config(config)
+    elif getattr(args, "rollouts", None) is not None:
+        config = overlay_eval_rollouts(config, args.rollouts)
 
     zero_shot = kind == "zero_shot" or config.stage == "zero_shot"
     language = kind == "language_control" or config.stage == "language_control"
@@ -333,6 +371,20 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
         if args.checkpoint is not None:
             parser.error("pass either --checkpoint or --run-dir, not both")
         listed = list_complete_checkpoints(args.run_dir)
+        if getattr(args, "steps", None):
+            try:
+                wanted = parse_checkpoint_steps(args.steps)
+            except ValueError as error:
+                parser.error(str(error))
+            have = {step: path for step, path in listed}
+            missing = [step for step in wanted if step not in have]
+            if missing:
+                print(
+                    f"requested steps missing complete checkpoints: {missing}",
+                    file=sys.stderr,
+                )
+                return 1
+            listed = [(step, have[step]) for step in wanted]
         if not listed:
             print(f"no complete checkpoints under {args.run_dir}", file=sys.stderr)
             return 1
@@ -364,17 +416,25 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
         checkpoints = [("ckpt", args.checkpoint)]
 
     codes: list[int] = []
-    for label, ckpt in checkpoints:
-        adapter = None
-        try:
-            adapter = _live_adapter(args, config, ckpt)
+    adapter = None
+    reuse_weights = _can_reuse_eval_weights(args)
+    try:
+        for label, ckpt in checkpoints:
+            if adapter is None:
+                adapter = _live_adapter(args, config, ckpt)
+            elif reuse_weights:
+                adapter.load_checkpoint_weights(ckpt)
+            else:
+                adapter.close()
+                adapter = _live_adapter(args, config, ckpt)
             for task in tasks:
-                if len(checkpoints) > 1:
-                    output = args.output_dir / label / task
-                elif len(tasks) > 1:
-                    output = args.output_dir / task
-                else:
-                    output = args.output_dir
+                output = eval_cell_output_dir(
+                    args.output_dir,
+                    label=label,
+                    task=task,
+                    run_dir=args.run_dir is not None,
+                    n_tasks=len(tasks),
+                )
                 codes.append(
                     _run_cell(
                         kind=kind,
@@ -386,10 +446,10 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
                         execute_rollout=adapter,
                     )
                 )
-        except (RuntimeError, FileNotFoundError, FileExistsError, TypeError) as error:
-            print(str(error), file=sys.stderr)
-            return 1
-        finally:
-            if adapter is not None:
-                adapter.close()
+    except (RuntimeError, FileNotFoundError, FileExistsError, TypeError) as error:
+        print(str(error), file=sys.stderr)
+        return 1
+    finally:
+        if adapter is not None:
+            adapter.close()
     return 0 if codes and all(code == 0 for code in codes) else 1

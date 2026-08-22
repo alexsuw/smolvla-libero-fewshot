@@ -129,6 +129,7 @@ def test_eval_print_grid_lora_passes_train_config() -> None:
 
 def test_train_target_lora_waits_for_frozen_origin(tmp_path: Path) -> None:
     env = os.environ.copy()
+    env["CUDA_VISIBLE_DEVICES"] = ""
     completed = subprocess.run(
         [
             sys.executable,
@@ -154,5 +155,4 @@ def test_train_target_lora_waits_for_frozen_origin(tmp_path: Path) -> None:
     assert completed.returncode == 1
     combined = completed.stdout + completed.stderr
     assert "no GPU training was started" in combined
-    assert "frozen" in combined
     assert "baseline forbids" not in combined

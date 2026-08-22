@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import time
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -37,6 +38,7 @@ from vla_fewshot.evaluation.toy import ToyEvalEnv, ToyEvalPolicy, fingerprint_ob
 from vla_fewshot.evaluation.trace import load_actions, write_trace
 from vla_fewshot.evaluation.video import (
     cell_id,
+    copy_rgb_frames,
     should_persist_video,
     success_cells_from_records,
     write_rollout_video,
@@ -73,6 +75,16 @@ def static_smoke_config(base: EvalConfig) -> EvalConfig:
         data["protocol"]["protocol_id"] = "static_eval_v1"
     data["protocol"]["rollouts_per_cell"] = 3
     data["protocol"]["max_horizon"] = 8
+    return EvalConfig.model_validate(data)
+
+
+def overlay_eval_rollouts(base: EvalConfig, count: int) -> EvalConfig:
+    """Keep tracked seeds/protocol_id; only shorten the prefix of 1000..1019."""
+
+    if int(count) < 1:
+        raise ValueError("rollouts overlay must be >= 1")
+    data = base.model_dump(mode="json")
+    data["protocol"]["rollouts_per_cell"] = int(count)
     return EvalConfig.model_validate(data)
 
 
@@ -248,57 +260,81 @@ def run_static_evaluation(
             n_demos=n_demos, train_seed=train_seed, episode_ids=episode_ids
         )
 
-    for spec in planned:
-        key = spec.key(digest)
-        if key in store.completed_keys():
-            skipped += 1
-            continue
-        record, traces, frames = (execute_rollout or _rollout_once)(
-            config=config,
-            spec=spec,
-            checkpoint_uri=str(checkpoint),
-            checkpoint_sha256=digest,
-            eval_run_id=run_id,
-            method=method,
-            stage=stage,
-            episode_ids=episode_ids,
-            git_commit=git.get("commit"),
-        )
-        persist = should_persist_video(
-            success=bool(record["success"]),
-            cell=cell_id(
-                method=method,
-                task_slug=spec.task_slug,
-                n_demos=n_demos,
-                train_seed=train_seed,
-                instruction_condition=spec.instruction_condition,
-            ),
-            success_cells_with_video=success_videos,
-            save_every_failure=config.protocol.save_every_failure_video,
-            save_first_success=config.protocol.save_first_success_video,
-        )
-        record["trace_uri"] = write_trace(output_dir, key, traces)
-        if persist:
-            record["video_uri"] = write_rollout_video(output_dir, key, frames)
-            if record["success"]:
-                success_videos.add(
-                    cell_id(
-                        method=method,
-                        task_slug=spec.task_slug,
-                        n_demos=n_demos,
-                        train_seed=train_seed,
-                        instruction_condition=spec.instruction_condition,
-                    )
-                )
-        else:
-            record["video_uri"] = None
+    pending: tuple[dict[str, Any], Future[str]] | None = None
+
+    def flush_pending() -> None:
+        nonlocal written, skipped, pending
+        if pending is None:
+            return
+        record, future = pending
+        record["video_uri"] = future.result()
         status = store.append(record)
         if status == "written":
             written += 1
         else:
             skipped += 1
-        if max_new_rollouts is not None and written >= max_new_rollouts:
-            break
+        pending = None
+
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="eval-av1") as encoder:
+        for spec in planned:
+            key = spec.key(digest)
+            if key in store.completed_keys():
+                skipped += 1
+                continue
+            queued = 1 if pending is not None else 0
+            if max_new_rollouts is not None and written + queued >= max_new_rollouts:
+                break
+            record, traces, frames = (execute_rollout or _rollout_once)(
+                config=config,
+                spec=spec,
+                checkpoint_uri=str(checkpoint),
+                checkpoint_sha256=digest,
+                eval_run_id=run_id,
+                method=method,
+                stage=stage,
+                episode_ids=episode_ids,
+                git_commit=git.get("commit"),
+            )
+            persist = should_persist_video(
+                success=bool(record["success"]),
+                cell=cell_id(
+                    method=method,
+                    task_slug=spec.task_slug,
+                    n_demos=n_demos,
+                    train_seed=train_seed,
+                    instruction_condition=spec.instruction_condition,
+                ),
+                success_cells_with_video=success_videos,
+                save_every_failure=config.protocol.save_every_failure_video,
+                save_first_success=config.protocol.save_first_success_video,
+            )
+            record["trace_uri"] = write_trace(output_dir, key, traces)
+            video_future: Future[str] | None = None
+            if persist:
+                copied = copy_rgb_frames(frames)
+                video_future = encoder.submit(write_rollout_video, output_dir, key, copied)
+                if record["success"]:
+                    success_videos.add(
+                        cell_id(
+                            method=method,
+                            task_slug=spec.task_slug,
+                            n_demos=n_demos,
+                            train_seed=train_seed,
+                            instruction_condition=spec.instruction_condition,
+                        )
+                    )
+            if pending is not None:
+                flush_pending()
+            if video_future is not None:
+                pending = (record, video_future)
+            else:
+                record["video_uri"] = None
+                status = store.append(record)
+                if status == "written":
+                    written += 1
+                else:
+                    skipped += 1
+        flush_pending()
 
     leftover = remaining_keys(expected_keys, store.completed_keys())
     complete = not leftover

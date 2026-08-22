@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from vla_fewshot.calibration import load_selected_checkpoint
+from vla_fewshot.calibration import load_selected_checkpoint, resolve_selected_checkpoint_path
 from vla_fewshot.config import EvalConfig
 from vla_fewshot.data.expected import TARGET_TASKS
 from vla_fewshot.evaluation.protocol import ProtocolError
@@ -52,7 +52,7 @@ def resolve_frozen_eval_checkpoint(
             f"{purpose} waits until configs/selected_seen_checkpoint.yaml is "
             "frozen from seen probes. no GPU evaluation was started."
         )
-    origin = Path(checkpoint) if checkpoint is not None else Path(selected.uri)
+    origin = resolve_selected_checkpoint_path(selected, checkpoint=checkpoint)
     return origin, selected.sha256
 
 

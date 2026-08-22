@@ -404,8 +404,8 @@ Deferred hardware / paid runs (TODO 23 GPU, 24 live probes, 25–31, 36 live S3)
 
 Status: GPU 100k run complete on this host. The original `physical=4` run was
 cleanly interrupted at step 416 and preserved. The optimized run finished at
-step 100000. `configs/selected_seen_checkpoint.yaml` stays
-`pending_seen_pretrain` until seen probes freeze it.
+step 100000. `configs/selected_seen_checkpoint.yaml` is now `frozen`
+at that step after 10-seed `libero_90` probes.
 
 Completed:
 
@@ -457,21 +457,29 @@ uv run python scripts/train_seen.py --help
 
 ## Seen probes and checkpoint freeze (TODO 24 code)
 
-Status: software complete on CPU; live probe rollouts and the frozen hash wait
-on the VM. Tracked `configs/selected_seen_checkpoint.yaml` stays
-`pending_seen_pretrain`.
+Status: complete on this VM. Tracked YAML is `frozen` at step 100000.
 
 Completed:
 
-- `--profile full` on Linux + CUDA runs live SmolVLA/LIBERO probes
-  (`--run-dir` covers every complete checkpoint × three frozen slugs).
-  The first live attempt crashed because `select_action` z-scores were
-  passed to the dataset gripper gate; eval now keeps the LeRobot
-  unnormalize postprocessor. Target/language full eval still refuses
-  until the seen checkpoint is frozen.
-- `select_seen_checkpoint.py` dry-run-first: earliest within 0.02 of best,
-  else step 100000; never reads target success; `--write` is idempotent;
-- static `*_v1` probe rows cannot freeze the checkpoint.
+- Live `libero_90` probes only (never `libero_goal`). Stage 1: 20k/40k/60k/80k/100k
+  × 5 seeds. Stage 2: 60k and 80k to 10 seeds, then 100k also to 10 seeds
+  after a 5-seed mean tie with 80k.
+- 10-seed means: 60k 0.700 (21/30), 80k 0.767 (23/30), 100k 0.800 (24/30).
+  Earliest within 0.02 of best is only 100k (`used_fallback=false`).
+- Frozen hash
+  `2cd510a594a87580f7368b782ca9b37332c0e5002d807093c759e95fbfb57c88`
+  at `checkpoints/step_100000` under run
+  `seen__expert__libero90__nall__s42__20260822T010019Z__gd4b8fb8`.
+- Interrupt/5k leftover cells kept on disk and ignored.
+- `select_seen_checkpoint.py --write` is idempotent; static rows cannot freeze.
+
+Persistent evidence:
+
+```text
+/mnt/vla/eval/seen_probes__gd4b8fb8/report/summary.md
+/mnt/vla/eval/seen_probes__gd4b8fb8/ten_seed_selection.json
+/mnt/vla/validation/TODO24/
+```
 
 Acceptance commands:
 
@@ -484,8 +492,9 @@ uv run python scripts/select_seen_checkpoint.py --help
 
 ## Target baseline (TODO 28 code)
 
-Status: software complete on CPU. GPU runs wait until the seen checkpoint YAML
-is `frozen`. Seen LoRA (TODO 25) is skipped and does not delay this path.
+Status: software complete on CPU. Seen YAML is `frozen`. GPU 18-cell runs
+wait until the persistent volume is large enough. Seen LoRA (TODO 25) is
+skipped and does not delay this path.
 
 Completed:
 
@@ -618,9 +627,7 @@ uv run python scripts/eval_target.py --train-config configs/train/target_replay_
 
 ## Next milestone
 
-The optimized 100k `seen_expert` run is complete. Next is TODO 24:
-`eval_seen --run-dir` on the 22 complete checkpoints and
-`select_seen_checkpoint.py --write`. Do not tune on target success. Then
-`eval_zero_shot.py` (3×20) and `eval_language_control.py` (paired correct/wrong).
-The 18-cell baseline waits until the persistent volume is large enough.
-Seen LoRA is skipped. Reporting (TODO 32–35) is already wired on CPU.
+TODO 24 freeze is done (step 100000). Next is TODO 26 `eval_zero_shot.py`
+(3×20) and TODO 27 `eval_language_control.py`. Do not tune on target
+success. The 18-cell baseline waits until the persistent volume is large
+enough. Seen LoRA is skipped. Reporting (TODO 32–35) is already wired on CPU.

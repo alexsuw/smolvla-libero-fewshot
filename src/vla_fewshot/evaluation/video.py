@@ -90,6 +90,20 @@ def write_rollout_video(
     return write_ppm_video(output_dir, key, frames)
 
 
+def copy_rgb_frames(frames: Sequence[Any]) -> list[Any]:
+    """Snapshot HWC frames so the next env.step cannot race a background encode."""
+
+    copied: list[Any] = []
+    for frame in frames:
+        if frame is None:
+            continue
+        if hasattr(frame, "copy") and callable(frame.copy) and not isinstance(frame, (list, tuple)):
+            copied.append(frame.copy())
+        else:
+            copied.append(_normalize_hwc(frame))
+    return copied
+
+
 def write_ppm_video(
     output_dir: Path,
     key: tuple[Any, ...],
@@ -167,6 +181,10 @@ def _try_encode_av1_mp4(
         "35",
         "-cpu-used",
         "8",
+        "-row-mt",
+        "1",
+        "-threads",
+        "0",
         "-b:v",
         "0",
         "-pix_fmt",

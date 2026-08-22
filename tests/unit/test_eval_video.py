@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 from vla_fewshot.evaluation.video import (
     should_persist_video,
@@ -58,3 +59,23 @@ def test_rollout_video_persists_mp4_or_ppm(tmp_path: Path, monkeypatch) -> None:
         assert path.suffix == ".mp4"
     else:
         assert (path / "frame-00000.ppm").is_file()
+
+
+def test_av1_encode_enables_row_mt(tmp_path: Path, monkeypatch) -> None:
+    captured: dict[str, list[str]] = {}
+
+    def fake_run(command, **_kwargs):
+        captured["command"] = list(command)
+        output = Path(command[-1])
+        output.write_bytes(b"mp4")
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr("vla_fewshot.evaluation.video.shutil.which", lambda _name: "ffmpeg")
+    monkeypatch.setattr("vla_fewshot.evaluation.video.subprocess.run", fake_run)
+    write_rollout_video(tmp_path, ("ckpt", "task", 0, None, "correct"), [_frame(3)])
+    command = captured["command"]
+    assert "-cpu-used" in command
+    assert command[command.index("-cpu-used") + 1] == "8"
+    assert "-row-mt" in command
+    assert command[command.index("-row-mt") + 1] == "1"
+    assert "-threads" in command
