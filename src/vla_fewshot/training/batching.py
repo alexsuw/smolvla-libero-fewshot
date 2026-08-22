@@ -5,7 +5,7 @@ from __future__ import annotations
 from vla_fewshot.config import TrainConfig
 from vla_fewshot.training.optim import resolve_gradient_accumulation
 
-AUTO_FIT_PHYSICAL = (32, 16, 8, 4, 2, 1)
+AUTO_FIT_PHYSICAL = (128, 64, 32, 16, 8, 4, 2, 1)
 
 
 def with_resolved_batch(config: TrainConfig, physical: int) -> TrainConfig:

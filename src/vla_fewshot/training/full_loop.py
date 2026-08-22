@@ -34,6 +34,7 @@ from vla_fewshot.storage.layout import (
     ENVIRONMENT_MANIFEST_NAME,
     EVENTS_JSONL_NAME,
     METRICS_CSV_NAME,
+    NORMALIZATION_STATS_NAME,
     RESOLVED_CONFIG_NAME,
     TENSORBOARD_DIRNAME,
     TRAINABLE_PARAMETERS_NAME,
@@ -59,9 +60,10 @@ from vla_fewshot.training.replay_mixer import (
 from vla_fewshot.training.resume import assert_resume_compatible
 from vla_fewshot.training.baseline import cap_optimizer_steps
 from vla_fewshot.training.stats import (
-    collect_state_action_rows,
-    mean_std,
-    overlay_state_action_stats,
+    jsonable_stats,
+    overlay_dataset_state_action_stats,
+    stats_digest,
+    write_normalization_stats,
 )
 from vla_fewshot.training.torch_checkpoint import (
     load_policy_weights,
@@ -152,19 +154,21 @@ def _load_lerobot_dataset(
     return dataset
 
 
-def _adamw(policy: Any, config: TrainConfig) -> Any:
+def _adamw(policy: Any, config: TrainConfig, *, fused: bool = False) -> Any:
     import torch
 
     params = [parameter for parameter in policy.parameters() if parameter.requires_grad]
     if not params:
         raise TrainError("optimizer has no trainable parameters")
-    return torch.optim.AdamW(
-        params,
-        lr=config.optimizer.lr,
-        betas=tuple(config.optimizer.betas),
-        eps=config.optimizer.eps,
-        weight_decay=config.optimizer.weight_decay,
-    )
+    kwargs: dict[str, Any] = {
+        "lr": config.optimizer.lr,
+        "betas": tuple(config.optimizer.betas),
+        "eps": config.optimizer.eps,
+        "weight_decay": config.optimizer.weight_decay,
+    }
+    if fused:
+        kwargs["fused"] = True
+    return torch.optim.AdamW(params, **kwargs)
 
 
 def prepare_full_training(
@@ -254,12 +258,8 @@ def prepare_full_training(
     if not stats:
         raise TrainError("dataset stats.json is required for MEAN_STD training; identity smoke stats are forbidden")
     if episode_ids is not None:
-        states, actions = collect_state_action_rows(
-            dataset[index] for index in range(len(dataset))
-        )
-        stats = overlay_state_action_stats(
-            stats, state=mean_std(states), action=mean_std(actions)
-        )
+        stats = overlay_dataset_state_action_stats(stats, dataset)
+    stats = jsonable_stats(stats)
     device = loaded["device"]
     preprocessor = _make_preprocessor(policy, stats, device)
     precision = resolve_precision(
@@ -299,6 +299,8 @@ def prepare_full_training(
         "origin_checkpoint": origin_checkpoint,
         "origin_sha256": origin_sha256,
         "replay_dataset": replay_dataset,
+        "stats": stats,
+        "normalization_stats_sha256": stats_digest(stats),
     }
 
 
@@ -319,6 +321,8 @@ def run_full_training(
     origin_checkpoint: Path | None = None,
     origin_sha256: str | None = None,
     episode_ids: list[int] | None = None,
+    fused_adamw: bool = False,
+    compile_model: bool = False,
 ) -> TrainResult:
     """Train SmolVLA with the project checkpoint/logger stack."""
 
@@ -418,8 +422,18 @@ def run_full_training(
                 "ordered_batch_prefetch": prefetch_enabled,
                 "wandb_mode": os.environ.get("WANDB_MODE", "disabled"),
                 "command": command,
+                "normalization_stats_sha256": bundle.get("normalization_stats_sha256"),
+                "normalization_stats_scope": (
+                    "selected_train_episodes_only"
+                    if episode_ids is not None
+                    else "suite"
+                ),
             },
         )
+
+    sidecar = run_dir / NORMALIZATION_STATS_NAME
+    if bundle.get("stats") is not None and not sidecar.is_file():
+        write_normalization_stats(sidecar, bundle["stats"])
 
     lock = _acquire_lock(run_dir)
     csv_logger = CsvMetricsLogger(run_dir / METRICS_CSV_NAME)
@@ -458,7 +472,9 @@ def run_full_training(
             output_dir=run_dir,
             peft_enabled=config.peft is not None,
         )
-        optimizer = _adamw(policy, config)
+        optimizer = _adamw(policy, config, fused=fused_adamw)
+        if compile_model:
+            policy = torch.compile(policy)
         scaler = torch.amp.GradScaler("cuda") if precision == "fp16" else None
 
         def _persist_checkpoint() -> Path:

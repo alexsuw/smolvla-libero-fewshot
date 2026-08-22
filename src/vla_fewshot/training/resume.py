@@ -10,7 +10,16 @@ from vla_fewshot.training.checkpoint import load_json
 from vla_fewshot.storage.layout import RESOLVED_CONFIG_NAME
 
 RESUME_OVERRIDE_ALLOWLIST = frozenset(
-    {"log_freq", "destination", "stop_after", "backup_dir", "output_dir"}
+    {
+        "log_freq",
+        "destination",
+        "stop_after",
+        "backup_dir",
+        "output_dir",
+        "batch_size",
+        "fused_adamw",
+        "compile_model",
+    }
 )
 
 

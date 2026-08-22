@@ -522,9 +522,11 @@ uv run python scripts/export_zero_shot_report.py --help
 
 ## Target baseline (TODO 28 code)
 
-Status: software complete on CPU. Seen YAML is `frozen`. GPU 18-cell runs
-wait until the persistent volume is large enough. Seen LoRA (TODO 25) is
-skipped and does not delay this path.
+Status: GPU 18-cell naive baseline is running. Seen YAML is `frozen`.
+Predictions are hash-locked. Throughput bench chose batch 32, two
+concurrent train jobs, four eval workers, finals-only eval without
+videos/traces. Seen LoRA (TODO 25) is skipped and does not delay this
+path.
 
 Completed:
 
@@ -662,9 +664,59 @@ uv run python scripts/train_target.py --config configs/train/target_replay_lora.
 uv run python scripts/eval_target.py --train-config configs/train/target_replay_lora.yaml --print-grid
 ```
 
+## TODO 28 disk / time preflight
+
+Status: complete. 18-cell training was not started.
+
+`/` and `/mnt/vla` are one 495G filesystem with **418G free**. A final
+baseline checkpoint is **1.24 GiB with optimizer**, **879 MiB without**,
+**865 MiB weights only**. Datasets 2.8G, caches a few GB, eval artifacts
+≪ 1G. Epoch caps yield **86 400** steps and **96** complete checkpoints
+(18 finals). New storage for 96 ckpts + 25% = **151 GiB** — fits.
+
+40-step probe (`/mnt/vla/validation/TODO28/timing_probe`, not a grid
+cell): **0.396 s/step** wall. Train ~**9.7 h**. Finals eval 18×20=360
+adds ~**5.5 h** (~15 h together). Spec TODO 29 (every complete
+checkpoint, 96×20=1920) adds ~**29.5 h** eval. This is not a ~2 h job.
+
+Predictions SHA-256
+`47282a1ca6613322e2baa25d9d4cbd66c00c2f5091aae357faf741291d82c0ea`
+is locked in `configs/predictions.lock.yaml`.
+
+Evidence:
+
+```text
+/mnt/vla/validation/TODO28/disk_estimate.md
+/mnt/vla/validation/TODO28/disk_estimate.json
+artifacts/validation/TODO28/disk_estimate.md
+```
+
+## TODO 28 integrity (grid left running)
+
+Status: four checks done. Grid was not stopped.
+
+- **Stats bug:** target train overlays subset MEAN_STD; eval used to
+  unnormalize with suite-wide `libero_goal` stats (`933e41c7…`). Fixed:
+  persist/recompute the same overlay. First-pair run-dir sidecars hash
+  `e53e2beed3…`. `auto_fit` only chooses physical batch; official cells
+  pin batch 32.
+- **Episodes:** N=5/10/25 are nested prefixes. Live
+  `drawer_middle` N=5 seeds 42 and 123 share `[20, 26, 31, 42, 58]`.
+- **1 vs 4 workers:** seeds 1000–1003 match fingerprint, success, length,
+  `init_state_id`.
+- **Paths:** `/mnt/vla/runs/target_baseline/` and
+  `/mnt/vla/eval/target_baseline/` are disjoint per cell.
+
+Evidence: `/mnt/vla/validation/TODO28/integrity.md`.
+
+First pair wall **918 s / 2200 steps** (startup + ckpt I/O) → full
+train **~5.0 h**, 360 eval **~0.4 h**. Six cells failed on a numpy
+JSON sidecar bug and will be retried after this launcher exits; the
+grid was not killed. `bowl_stove` N=10 is training with the fix.
+
 ## Next milestone
 
-M7 live eval is done (zero-shot 1/60, language control 1/60 vs 0/60
-with diverging paired trajectories). Next is TODO 28, the 18-cell
-baseline, only after the persistent volume is actually ~512 GB. Do not
-retune on target success. Seen LoRA is skipped.
+TODO 28 18-cell training is in progress on this VM (`run_baseline_grid.py`,
+batch 32, train concurrency 2). After the 18 finals exist, the same
+launcher runs 360 rollouts (20 seeds × 18 checkpoints) without videos.
+Do not retune on target success. Seen LoRA is skipped.

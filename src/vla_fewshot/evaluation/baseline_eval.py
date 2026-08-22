@@ -104,6 +104,8 @@ def check_baseline_eval_records(
     episode_ids: list[int],
     min_rollouts: int = MIN_ROLLOUTS,
     method: str = "baseline",
+    require_videos: bool = True,
+    require_traces: bool = True,
 ) -> dict[str, Any]:
     if not records:
         raise BaselineEvalError(
@@ -139,15 +141,19 @@ def check_baseline_eval_records(
             raise BaselineEvalError("task_slug mismatch in baseline eval records")
         if list(record.get("training_episode_ids") or []) != episode_ids:
             raise BaselineEvalError("training_episode_ids are not the nested prefix")
-        if not record.get("trace_uri"):
+        if require_traces and not record.get("trace_uri"):
             missing_traces += 1
-        if int(record.get("success") or 0) == 0 and not record.get("video_uri"):
+        if (
+            require_videos
+            and int(record.get("success") or 0) == 0
+            and not record.get("video_uri")
+        ):
             failures_missing_video += 1
-    if missing_traces:
+    if require_traces and missing_traces:
         raise BaselineEvalError(
             f"{task_slug} n={n_demos} s={train_seed}: {missing_traces} rollouts missing traces"
         )
-    if failures_missing_video:
+    if require_videos and failures_missing_video:
         raise BaselineEvalError(
             f"{task_slug} n={n_demos} s={train_seed}: "
             f"{failures_missing_video} failures missing video"
@@ -187,6 +193,9 @@ def verify_baseline_run_eval(
     splits: TargetSplits,
     min_rollouts: int = MIN_ROLLOUTS,
     method: str = "baseline",
+    final_only: bool = False,
+    require_videos: bool = True,
+    require_traces: bool = True,
 ) -> dict[str, Any]:
     if task_slug not in TARGET_SLUGS:
         raise BaselineEvalError(f"unknown target task {task_slug!r}")
@@ -197,6 +206,8 @@ def verify_baseline_run_eval(
     checkpoints = list_complete_checkpoints(train_dir)
     if not checkpoints:
         raise BaselineEvalError(f"no complete checkpoints under {train_dir}")
+    if final_only:
+        checkpoints = [checkpoints[-1]]
     checked: list[dict[str, Any]] = []
     for step, _ckpt in checkpoints:
         jsonl = eval_rollouts_path(eval_dir, step=step, task_slug=task_slug)
@@ -214,6 +225,8 @@ def verify_baseline_run_eval(
                 episode_ids=episode_ids,
                 min_rollouts=min_rollouts,
                 method=method,
+                require_videos=require_videos,
+                require_traces=require_traces,
             )
         )
     return {

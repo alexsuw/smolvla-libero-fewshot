@@ -69,6 +69,24 @@ def cap_optimizer_steps(
     return stop
 
 
+def apply_throughput_batch(config: TrainConfig, batch_size: int) -> TrainConfig:
+    """Set physical=effective batch. Epoch cap then uses the new batch."""
+
+    if batch_size < 1:
+        raise TrainError("batch_size must be positive")
+    return config.model_copy(
+        update={
+            "training": config.training.model_copy(
+                update={
+                    "effective_batch_size": batch_size,
+                    "physical_batch_size": batch_size,
+                    "gradient_accumulation": 1,
+                }
+            )
+        }
+    )
+
+
 def apply_cell_overrides(
     config: TrainConfig,
     *,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -24,6 +25,7 @@ from vla_fewshot.storage.layout import (
     CHECKPOINT_WEIGHTS_PT_NAME,
     CHECKPOINTS_INDEX_NAME,
     LATEST_POINTER_NAME,
+    NORMALIZATION_STATS_NAME,
     RESOLVED_CONFIG_NAME,
     TRAINABLE_PARAMETERS_NAME,
     checkpoints_root,
@@ -119,6 +121,9 @@ def save_torch_checkpoint(
             "\n".join(trainable_names) + ("\n" if trainable_names else ""),
             overwrite=True,
         )
+        sidecar = run_dir / NORMALIZATION_STATS_NAME
+        if sidecar.is_file():
+            shutil.copy2(sidecar, tmp_dir / NORMALIZATION_STATS_NAME)
         hashed = file_checksums(
             tmp_dir,
             exclude=(CHECKPOINT_CHECKSUMS_NAME, CHECKPOINT_COMPLETED_NAME),

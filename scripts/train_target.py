@@ -18,10 +18,12 @@ from vla_fewshot.data.layout import resolve_datasets_dir
 from vla_fewshot.data.leakage import LeakageError
 from vla_fewshot.data.splits import load_target_splits
 from vla_fewshot.storage.sync import execute_local_mirror
+from vla_fewshot.predictions import require_frozen_predictions
 from vla_fewshot.training.baseline import (
     TARGET_SLUGS,
     TRAIN_SEEDS,
     apply_cell_overrides,
+    apply_throughput_batch,
     baseline_grid,
     build_target_run_id,
     episode_ids_for_cell,
@@ -63,6 +65,22 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--stop-after", type=int)
     parser.add_argument("--log-freq", type=int, default=1)
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        choices=(32, 64, 128),
+        help="Throughput override: physical=effective batch. Epoch cap uses this batch.",
+    )
+    parser.add_argument(
+        "--fused-adamw",
+        action="store_true",
+        help="Use torch.optim.AdamW(fused=True) if the build supports it.",
+    )
+    parser.add_argument(
+        "--compile",
+        action="store_true",
+        help="Wrap the policy with torch.compile. Throughput only.",
+    )
     parser.add_argument("--backup-dir", type=Path)
     parser.add_argument(
         "--destination",
@@ -141,9 +159,12 @@ def main(argv: list[str] | None = None) -> int:
         config = _load_train_config(args.config)
         assert_target_train_config(config)
         config = apply_cell_overrides(config, seed=args.seed)
+        if args.batch_size is not None:
+            config = apply_throughput_batch(config, args.batch_size)
         origin, origin_sha256, _run_id = require_frozen_seen_origin(
             checkpoint=args.seen_checkpoint
         )
+        require_frozen_predictions()
         splits = load_target_splits(args.split)
         episode_ids = episode_ids_for_cell(
             splits, task_slug=args.task, n_demos=args.n_demos
@@ -183,6 +204,9 @@ def main(argv: list[str] | None = None) -> int:
             "stop_after": args.stop_after,
             "backup_dir": args.backup_dir,
             "output_dir": args.output_dir,
+            "batch_size": args.batch_size,
+            "fused_adamw": True if args.fused_adamw else None,
+            "compile_model": True if args.compile else None,
         }
     )
     project_root = Path.cwd()
@@ -217,6 +241,8 @@ def main(argv: list[str] | None = None) -> int:
             install_signal_handlers=True,
             run_id=run_dir.name,
             prepared=prepared,
+            fused_adamw=args.fused_adamw,
+            compile_model=args.compile,
         )
     except (RuntimeError, FileNotFoundError, FileExistsError, TrainError) as error:
         print(str(error), file=sys.stderr)

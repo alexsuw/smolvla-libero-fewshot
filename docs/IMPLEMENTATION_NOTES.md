@@ -254,8 +254,21 @@ pinned upstream revisions.
 
 ## Object storage, predictions, calibration, reporting
 
-- Predictions are in `predictions.md` and must not be rewritten after the
-  real target grid starts.
+- Predictions are in `predictions.md`. `configs/predictions.lock.yaml`
+  stores the SHA-256; `train_target.py` and `assert_frozen_calibration`
+  fail closed on drift before any target GPU work. Do not edit numerical
+  claims after this lock; record actuals in `report/report.md`.
+- TODO 28 disk was measured on this VM, not assumed as “512 GB”. `/` and
+  `/mnt/vla` share one 495G disk with ~418G free. A trainer checkpoint is
+  1.24 GiB with optimizer / 865 MiB weights. Epoch caps give 86 400
+  steps and 96 complete checkpoints (151 GiB with 25%).
+- Deadline throughput: batch 64/128 fit in VRAM but make N=5 shorter
+  than the frozen 1000-step warmup, so official cells stay at batch 32.
+  `torch.compile` needs a C compiler (absent). Fused AdamW did not help.
+  Two train processes of the same (task, N) win on aggregate samples/s.
+  Official eval is finals-only, 20 seeds, no AV1/traces (~15 s/rollout).
+  Launcher: `scripts/run_baseline_grid.py`. Evidence:
+  `/mnt/vla/validation/TODO28/`.
 - Pseudo-target tasks are three `libero_90` texts from the replay gate, not
   the held-out `libero_goal` targets. Train YAML values are checked against
   `configs/calibration.yaml`. The selected seen-checkpoint hash stays unset
@@ -290,7 +303,13 @@ pinned upstream revisions.
 - Identity MEAN_STD stats remain smoke-only. Full seen training uses suite
   `stats.json` / `dataset.meta.stats`. Target baseline overlays subset-local
   MEAN_STD for `observation.state` and `action` from the selected episodes;
-  image stats stay IDENTITY.
+  image stats stay IDENTITY. The overlay is persisted as
+  `normalization_stats.json` on the run (and copied into later checkpoints).
+  Target eval must load that sidecar or recompute the same `dataset[i]`
+  overlay; suite-wide `libero_goal/meta/stats.json` is not the training
+  MEAN_STD. Zero-shot / language-control stay on seen-suite stats.
+  `dataset.meta.stats` keeps numpy arrays; the sidecar digest converts
+  them with `.tolist()` before `json.dumps`.
 - After auto-fit, CUDA OOM is fatal (`physical_batch_size` is frozen).
 - `make_pre_post_processors(..., preprocessor_overrides=device)` is attempted;
   a `TypeError` falls back to the signature already used by `smoke_inference.py`.
@@ -302,10 +321,16 @@ pinned upstream revisions.
   `configs/splits/target_splits.json`. Stop is `min(100 epochs, 12000 steps)`
   with `sample_with_replacement: true`. The final step is always checkpointed
   even when it is not on `save_steps`.
-- `--print-grid` lists the 18 independent cells. `eval_target.py --run-dir`
-  evaluates every complete baseline checkpoint. `verify_baseline_eval.py` is
-  the complete-cell checker: ≥20 `final_v1` rollouts, traces, failure videos,
-  nested episode IDs. Static rows cannot close the grid.
+- `--print-grid` lists the 18 independent cells. Deadline eval is
+  `eval_target.py --run-dir --final-only --skip-videos --skip-traces`
+  (360 official rollouts). `verify_baseline_eval.py` still checks the
+  complete-cell contract when videos/traces are required; the deadline
+  path passes `require_videos=False`.
+- Official cells pin `--batch-size 32`, so `physical = effective = 32`
+  and `gradient_accumulation = 1`. YAML `physical_batch_size: auto_fit`
+  is not used: `auto_fit` only chooses the largest physical batch that
+  divides `effective_batch_size` and fits VRAM. It does not fit learning
+  rate, MEAN_STD, episode IDs, or the seen checkpoint.
 - Epoch length is `ceil(n_samples / effective_batch_size)` optimizer steps,
   not physical micro-batches.
 

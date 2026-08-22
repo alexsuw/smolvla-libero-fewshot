@@ -12,6 +12,7 @@ from vla_fewshot.config import (
     load_config,
 )
 from vla_fewshot.data.pseudo import load_pseudo_target_splits
+from vla_fewshot.predictions import require_frozen_predictions
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CALIBRATION = ROOT / "configs" / "calibration.yaml"
@@ -104,6 +105,7 @@ def assert_frozen_calibration(*, root: Path = ROOT) -> None:
     """Load the committed freeze and confirm train YAMLs still match."""
 
     cal = load_calibration(root / "configs" / "calibration.yaml")
+    require_frozen_predictions(root=root)
     selected = load_selected_checkpoint(root / "configs" / "selected_seen_checkpoint.yaml")
     splits = load_pseudo_target_splits(root / cal.pseudo_target_splits)
     if list(splits.slugs) != list(cal.seen_probe_slugs):

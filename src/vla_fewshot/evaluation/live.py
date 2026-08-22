@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import random
 import time
 from datetime import UTC, datetime
@@ -28,6 +26,7 @@ from vla_fewshot.model.processors import make_policy_processors
 from vla_fewshot.model.smolvla import load_pinned_smolvla
 from vla_fewshot.storage.layout import CHECKPOINT_WEIGHTS_PT_NAME
 from vla_fewshot.training.checkpoint import is_complete_checkpoint
+from vla_fewshot.training.stats import stats_digest
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _GATE_ENV_TASK_IDS: dict[tuple[str, str], int] | None = None
@@ -142,8 +141,7 @@ def suite_stats(*, datasets_dir: Path, repo_id: str, revision: str, suite: str) 
 
 
 def normalization_stats_sha256(stats: dict[str, Any]) -> str:
-    payload = json.dumps(stats, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
+    return stats_digest(stats)
 
 
 def seed_live_inference(seed: int) -> None:
@@ -186,6 +184,7 @@ class LiveRolloutAdapter:
         self.device = device
         self.normalization_suite = normalization_suite
         self.normalization_stats_sha256 = normalization_stats_digest
+        self.record_artifacts = True
         self._envs: dict[tuple[str, int], LiberoRuntime] = {}
 
     def load_checkpoint_weights(self, checkpoint: Path) -> None:
@@ -244,7 +243,9 @@ class LiveRolloutAdapter:
         fingerprint = fingerprint_observation(observation)
         self.policy.reset()
         traces: list[dict[str, Any]] = []
-        frames: list[Any] = [env.extract_main_hwc(observation)]
+        frames: list[Any] = (
+            [env.extract_main_hwc(observation)] if self.record_artifacts else []
+        )
         terminated = False
         truncated = False
         success = False
@@ -268,18 +269,19 @@ class LiveRolloutAdapter:
                 env_action = dataset_action_to_env(dataset_action, binary=True)
                 observation, _reward, terminated, truncated, info = env.step(list(env_action))
                 success = bool(info.get("is_success"))
-                traces.append(
-                    {
-                        "step": steps,
-                        "action": list(env_action),
-                        "dataset_action": list(dataset_action),
-                        "state": _as_state_list(observation["observation.state"]),
-                        "is_success": success,
-                        "terminated": bool(terminated),
-                        "truncated": bool(truncated),
-                    }
-                )
-                frames.append(env.extract_main_hwc(observation))
+                if self.record_artifacts:
+                    traces.append(
+                        {
+                            "step": steps,
+                            "action": list(env_action),
+                            "dataset_action": list(dataset_action),
+                            "state": _as_state_list(observation["observation.state"]),
+                            "is_success": success,
+                            "terminated": bool(terminated),
+                            "truncated": bool(truncated),
+                        }
+                    )
+                    frames.append(env.extract_main_hwc(observation))
                 steps += 1
                 if terminated or truncated or success or steps >= config.protocol.max_horizon:
                     stop = True

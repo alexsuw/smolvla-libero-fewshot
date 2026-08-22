@@ -7,6 +7,7 @@ from pathlib import Path
 MANIFEST_NAME = "manifest.json"
 RESOLVED_CONFIG_NAME = "config.resolved.yaml"
 ENVIRONMENT_MANIFEST_NAME = "environment_manifest.json"
+NORMALIZATION_STATS_NAME = "normalization_stats.json"
 TRAINABLE_PARAMETERS_NAME = "trainable_parameters.txt"
 TRAIN_LOG_NAME = "train.log"
 METRICS_CSV_NAME = "metrics.csv"

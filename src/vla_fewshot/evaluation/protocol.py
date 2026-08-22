@@ -196,7 +196,11 @@ def plan_named_rollouts(
             n_demos=n_demos,
             train_seed=train_seed,
             eval_seed=int(seed),
-            rollout_index=index,
+            rollout_index=(
+                FINAL_SEED_VALUES.index(int(seed))
+                if int(seed) in FINAL_SEED_VALUES
+                else index
+            ),
             instruction_condition=instruction_condition,
             instruction_text_used=text,
             protocol_id=config.protocol.protocol_id,

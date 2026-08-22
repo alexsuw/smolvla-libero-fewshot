@@ -29,6 +29,7 @@ def test_action_delta_timestamps_match_smolvla_chunk() -> None:
 
 def test_auto_fit_candidates_divide_effective_batch() -> None:
     assert auto_fit_candidates(32) == (32, 16, 8, 4, 2, 1)
+    assert auto_fit_candidates(64) == (64, 32, 16, 8, 4, 2, 1)
     assert auto_fit_candidates(6) == (2, 1)
 
 

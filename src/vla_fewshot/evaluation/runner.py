@@ -141,8 +141,13 @@ def plan_eval_rollouts(
     train_seed: int | None,
     project_root: Path,
     language_control: bool,
+    seed_values: Sequence[int] | None = None,
 ) -> list[PlannedRollout]:
-    seeds = seeds_for_config(config, project_root=project_root)
+    seeds = (
+        [int(seed) for seed in seed_values]
+        if seed_values is not None
+        else seeds_for_config(config, project_root=project_root)
+    )
     if config.stage == "seen_probe" and task_slug not in {
         "drawer_middle",
         "bowl_stove",
@@ -226,6 +231,9 @@ def run_static_evaluation(
     eval_run_id: str | None = None,
     max_new_rollouts: int | None = None,
     execute_rollout: Any | None = None,
+    seed_values: Sequence[int] | None = None,
+    skip_videos: bool = False,
+    skip_traces: bool = False,
 ) -> EvalResult:
     os.environ["WANDB_MODE"] = "disabled"
     os.environ["WANDB_DISABLED"] = "true"
@@ -243,6 +251,7 @@ def run_static_evaluation(
         train_seed=train_seed,
         project_root=project_root,
         language_control=language_control,
+        seed_values=seed_values,
     )
     output_dir.mkdir(parents=True, exist_ok=True)
     run_id = eval_run_id or build_eval_run_id(
@@ -332,7 +341,7 @@ def run_static_evaluation(
                 episode_ids=episode_ids,
                 git_commit=git.get("commit"),
             )
-            persist = should_persist_video(
+            persist = (not skip_videos) and should_persist_video(
                 success=bool(record["success"]),
                 cell=cell_id(
                     method=method,
@@ -345,7 +354,10 @@ def run_static_evaluation(
                 save_every_failure=config.protocol.save_every_failure_video,
                 save_first_success=config.protocol.save_first_success_video,
             )
-            record["trace_uri"] = write_trace(output_dir, key, traces)
+            if skip_traces:
+                record["trace_uri"] = None
+            else:
+                record["trace_uri"] = write_trace(output_dir, key, traces)
             video_future: Future[str] | None = None
             if persist:
                 copied = copy_rgb_frames(frames)

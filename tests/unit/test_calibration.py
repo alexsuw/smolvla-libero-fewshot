@@ -34,9 +34,12 @@ def test_calibration_matches_tracked_train_configs() -> None:
 
 
 def test_predictions_committed_before_target_results() -> None:
+    from vla_fewshot.predictions import require_frozen_predictions
+
     text = (ROOT / "predictions.md").read_text(encoding="utf-8")
     assert "N=0" in text and "N=5" in text
     assert "Parameter-efficient" in text or "parameter-efficient" in text.lower()
     assert "seen replay" in text
+    require_frozen_predictions(root=ROOT)
     report = (ROOT / "report" / "report.md").read_text(encoding="utf-8")
     assert "не содержит численных claims" in report or "numerical claims" in report.lower()

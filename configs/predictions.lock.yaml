@@ -1,0 +1,5 @@
+kind: predictions_lock
+schema_version: 1
+status: frozen
+path: predictions.md
+sha256: 47282a1ca6613322e2baa25d9d4cbd66c00c2f5091aae357faf741291d82c0ea

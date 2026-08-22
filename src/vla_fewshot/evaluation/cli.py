@@ -21,6 +21,10 @@ from vla_fewshot.evaluation.runner import (
     run_static_evaluation,
     static_smoke_config,
 )
+from vla_fewshot.evaluation.normalization import (
+    normalization_stats_suite,
+    resolve_live_normalization,
+)
 from vla_fewshot.evaluation.select import list_complete_checkpoints, parse_checkpoint_steps
 from vla_fewshot.storage.layout import step_directory_name
 
@@ -86,35 +90,6 @@ def _load_train_config(path: Path) -> TrainConfig:
     if not isinstance(loaded, TrainConfig):
         raise TypeError(f"{path} is not a train config")
     return loaded
-
-
-def normalization_stats_suite(
-    eval_config: EvalConfig,
-    train_config: TrainConfig,
-) -> str:
-    """Use the statistics that trained the evaluated policy.
-
-    A frozen seen policy must never be normalized with held-out target-suite
-    statistics. Target checkpoints keep their target training suite here;
-    subset-local statistics require checkpoint provenance before live M8 eval.
-    """
-
-    if eval_config.stage in {"zero_shot", "language_control"}:
-        if train_config.stage != "seen":
-            raise RuntimeError(
-                f"{eval_config.stage} requires a seen train config for normalization; "
-                f"got stage={train_config.stage}"
-            )
-        if train_config.dataset.suite != eval_config.dataset.suite_seen:
-            raise RuntimeError(
-                f"{eval_config.stage} normalization suite "
-                f"{train_config.dataset.suite!r} != configured seen suite "
-                f"{eval_config.dataset.suite_seen!r}"
-            )
-        return train_config.dataset.suite
-    if eval_config.stage == "seen_probe":
-        return eval_config.dataset.suite_seen
-    return train_config.dataset.suite
 
 
 def _eval_tasks(kind: EvalKind, args: argparse.Namespace, config: EvalConfig) -> list[str]:
@@ -203,6 +178,9 @@ def _run_cell(
         command=["python", f"scripts/eval_{kind}.py", *sys.argv[1:]],
         language_control=language,
         execute_rollout=execute_rollout,
+        seed_values=getattr(args, "eval_seeds", None),
+        skip_videos=bool(getattr(args, "skip_videos", False)),
+        skip_traces=bool(getattr(args, "skip_traces", False)),
     )
     print(
         f"eval task={task} complete={result.complete} planned={result.planned} "
@@ -212,21 +190,19 @@ def _run_cell(
 
 
 def _live_adapter(args: argparse.Namespace, config: EvalConfig, checkpoint: Path) -> Any:
-    from vla_fewshot.evaluation.live import (
-        LiveRolloutAdapter,
-        load_eval_policy,
-        normalization_stats_sha256,
-        suite_stats,
-    )
+    from vla_fewshot.evaluation.live import LiveRolloutAdapter, load_eval_policy
 
     train = _load_train_config(args.train_config)
     datasets_dir = resolve_datasets_dir(args.output_root)
-    stats_suite = normalization_stats_suite(config, train)
-    stats = suite_stats(
+    stats, stats_suite, digest, _source = resolve_live_normalization(
+        eval_config=config,
+        train_config=train,
+        checkpoint=checkpoint,
         datasets_dir=datasets_dir,
-        repo_id=config.dataset.repo_id,
-        revision=config.dataset.revision,
-        suite=stats_suite,
+        run_dir=getattr(args, "run_dir", None),
+        task_slug=getattr(args, "task", None),
+        n_demos=getattr(args, "n_demos", None),
+        split_path=getattr(args, "split", None),
     )
     loaded = load_eval_policy(
         checkpoint=checkpoint,
@@ -237,15 +213,18 @@ def _live_adapter(args: argparse.Namespace, config: EvalConfig, checkpoint: Path
         action_chunk_horizon=config.protocol.action_chunk_horizon,
         train=train,
     )
-    return LiveRolloutAdapter(
+    adapter = LiveRolloutAdapter(
         policy=loaded["policy"],
         preprocessor=loaded["preprocessor"],
         postprocessor=loaded["postprocessor"],
         device=loaded["device"],
         hard_reset=config.protocol.hard_reset,
         normalization_suite=stats_suite,
-        normalization_stats_digest=normalization_stats_sha256(stats),
+        normalization_stats_digest=digest,
     )
+    if getattr(args, "skip_videos", False) or getattr(args, "skip_traces", False):
+        adapter.record_artifacts = False
+    return adapter
 
 
 def _can_reuse_eval_weights(args: argparse.Namespace) -> bool:
@@ -291,6 +270,29 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
     if kind == "target":
         parser.add_argument("--n-demos", type=int, choices=(0, 5, 10, 25))
         parser.add_argument("--seed", type=int, choices=(42, 123))
+        parser.add_argument(
+            "--steps",
+            help="Comma-separated checkpoint steps under --run-dir.",
+        )
+        parser.add_argument(
+            "--final-only",
+            action="store_true",
+            help="Evaluate only the last complete checkpoint under --run-dir.",
+        )
+        parser.add_argument(
+            "--skip-videos",
+            action="store_true",
+            help="Skip AV1 encoding. Official deadline path; success is unchanged.",
+        )
+        parser.add_argument(
+            "--skip-traces",
+            action="store_true",
+            help="Skip per-step traces. Official deadline path; success is unchanged.",
+        )
+        parser.add_argument(
+            "--eval-seeds",
+            help="Comma-separated subset of the fixed 1000-1019 eval seeds.",
+        )
     if kind in {"zero_shot", "language_control", "target"}:
         parser.add_argument(
             "--print-grid",
@@ -300,6 +302,27 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     os.environ.setdefault("WANDB_MODE", "disabled")
     os.environ.setdefault("WANDB_DISABLED", "true")
+    if getattr(args, "eval_seeds", None):
+        from vla_fewshot.evaluation.protocol import FINAL_SEED_VALUES
+
+        parsed: list[int] = []
+        for part in str(args.eval_seeds).split(","):
+            part = part.strip()
+            if not part:
+                continue
+            if not part.isdigit():
+                parser.error(f"invalid eval seed: {part!r}")
+            seed = int(part)
+            if seed not in FINAL_SEED_VALUES:
+                parser.error(f"eval seed {seed} is not in the fixed 1000-1019 list")
+            parsed.append(seed)
+        if not parsed:
+            parser.error("--eval-seeds is empty")
+        if len(set(parsed)) != len(parsed):
+            parser.error("--eval-seeds has duplicates")
+        args.eval_seeds = parsed
+    else:
+        args.eval_seeds = None
 
     if getattr(args, "print_grid", False):
         if kind == "zero_shot":
@@ -404,6 +427,13 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
         if args.checkpoint is not None:
             parser.error("pass either --checkpoint or --run-dir, not both")
         listed = list_complete_checkpoints(args.run_dir)
+        if getattr(args, "final_only", False) and getattr(args, "steps", None):
+            parser.error("pass either --final-only or --steps, not both")
+        if getattr(args, "final_only", False):
+            if not listed:
+                print(f"no complete checkpoints under {args.run_dir}", file=sys.stderr)
+                return 1
+            listed = [listed[-1]]
         if getattr(args, "steps", None):
             try:
                 wanted = parse_checkpoint_steps(args.steps)

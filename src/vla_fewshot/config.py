@@ -398,6 +398,14 @@ class SelectedCheckpointConfig(StrictModel):
         return self
 
 
+class PredictionsLockConfig(StrictModel):
+    kind: Literal["predictions_lock"]
+    schema_version: Literal[1]
+    status: Literal["frozen"]
+    path: str = Field(pattern=r"^predictions\.md$")
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 ConfigModel = (
     RevisionsConfig
     | StorageConfig
@@ -408,6 +416,7 @@ ConfigModel = (
     | EvalConfig
     | CalibrationConfig
     | SelectedCheckpointConfig
+    | PredictionsLockConfig
 )
 
 MODEL_BY_KIND: dict[str, type[StrictModel]] = {
@@ -420,6 +429,7 @@ MODEL_BY_KIND: dict[str, type[StrictModel]] = {
     "eval": EvalConfig,
     "calibration": CalibrationConfig,
     "selected_checkpoint": SelectedCheckpointConfig,
+    "predictions_lock": PredictionsLockConfig,
 }
 
 FORBIDDEN_PATH_PREFIXES = ("/content", "/mnt/vla")
