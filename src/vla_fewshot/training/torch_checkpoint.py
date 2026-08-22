@@ -11,6 +11,7 @@ from typing import Any
 from vla_fewshot.config import TrainConfig
 from vla_fewshot.reproducibility import atomic_write_json, atomic_write_text
 from vla_fewshot.model.peft import maybe_save_adapter_sidecar
+from vla_fewshot.storage.checksums import file_checksums, sha256_file, verify_file_checksums
 from vla_fewshot.storage.layout import (
     CHECKPOINT_CHECKSUMS_NAME,
     CHECKPOINT_COMPLETED_NAME,
