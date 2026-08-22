@@ -139,22 +139,31 @@ pinned upstream revisions.
   Weights are stored as IEEE-754 hex so JSON round-trips are bit-exact.
 - `--profile full` on Linux + CUDA runs the project trainer (no `lerobot-train`).
   macOS and hosts without CUDA still fail closed with `no GPU training was started`.
-  Auto-fit of physical batch `{4,2,1}` happens before the run directory exists.
+  Auto-fit of physical batch `{32,16,8,4,2,1}` happens before the run directory exists.
   Weights are `weights.pt`; the static path still uses JSON toy weights.
-  Frame decode stays in-process so the index cursor can resume exactly;
-  `training.num_workers` is recorded but not used for DataLoader workers.
+  Frame decode stays in-process so the index cursor can resume exactly. For
+  `gradient_accumulation=1`, a positive `training.num_workers` enables one
+  ordered next-batch prefetch thread; the dataset backend already parallelizes
+  the two camera streams. Prefetched indices are checkpointed, so resume does
+  not skip them. Replay or accumulated runs keep synchronous loading.
   `save_torch_checkpoint` must import `file_checksums` / `sha256_file` /
   `verify_file_checksums`; a missing import fails the first GPU save at
   `every_steps` (this host: step 100, run left at
-  `$VLA_RUNS_DIR/seen_smoke_200`). LeRobot may warn that `torchcodec` cannot
-  load and fall back to `pyav`; that is not a substitute for the FFmpeg 7.1.1
-  pin used for eval videos.
+  `$VLA_RUNS_DIR/seen_smoke_200`). A static FFmpeg 7.1.1 executable is not
+  enough for TorchCodec: `libav*.so` must be available on `LD_LIBRARY_PATH`.
+  The checksummed `build_shared_ffmpeg.sh` host build removed the PyAV fallback.
+  Outer multi-threaded `dataset.__getitem__` was rejected because it was slower
+  with PyAV and unsafe with TorchCodec.
 - Resume may override only `log_freq`, `destination`, `stop_after`,
   `backup_dir`, and `output_dir`. Dataset revision, split, trainable scope,
   optimizer, scheduler, batch, and seed are frozen. YAML `physical_batch_size:
   auto_fit` / `gradient_accumulation: auto` is not a contract change: resume
   loads the integers already frozen in the checkpoint and skips a second
   auto-fit so a crash cannot pick a different microbatch.
+  Auto-fit tries divisors `{32,16,8,4,2,1}` largest-first; the RTX PRO 6000
+  resolved `32/1`. Full `libero_90` throughput evidence is under
+  `$VLA_DATA_ROOT/validation/M6/throughput`: 1.338 to 0.365 seconds/step and
+  exact continuous-vs-resumed step-100 weight hashes.
 - `sync_artifacts.py` default is dry-run and never deletes. Local directory
   destinations keep the M5 mirror. `file://` and `s3://` destinations use the
   object protocol: temporary prefix, size/checksum verify, remote

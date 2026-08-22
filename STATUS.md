@@ -396,23 +396,48 @@ artifacts/validation/reporting/
 
 Deferred hardware / paid runs (TODO 23 GPU, 24 live probes, 25–31, 36 live S3):
 
-- 100k `libero_90` seen-pretrain (running) and seen probes after it finishes;
+- optimized 100k `libero_90` seen-pretrain and seen probes after it finishes;
 - zero-shot, language control, baseline grid, LoRA on real targets;
 - verified remote backup of the final bundle to a real bucket.
 
 ## Seen-pretrain trainer (TODO 23 code)
 
-Status: software complete on CPU; the 100k CUDA run is in progress on this VM
-under tmux `vla-seen-100k`.
+Status: software and GPU throughput acceptance complete. The original
+`physical=4` run was cleanly interrupted at step 416 and preserved; a fresh
+optimized 100k run must start from the committed code because physical batch
+is part of the frozen resume contract.
 
 Completed:
 
 - project-owned SmolVLA loop (`train_seen.py --profile full`) that never calls
   `lerobot-train` / WandBLogger;
-- allowlist before AdamW; auto-fit `{4,2,1}` before the run directory exists;
+- allowlist before AdamW; auto-fit `{32,16,8,4,2,1}` before the run directory
+  exists;
 - torch checkpoints (`weights.pt`) with checksums and `COMPLETED.json`;
 - deterministic frame cursor for resume; suite stats for MEAN_STD;
+- shared pinned FFmpeg 7.1.1 enables TorchCodec; one ordered next-batch
+  prefetch overlaps decode with CUDA and checkpoints pending indices;
 - Darwin / no-CUDA still fail closed with `no GPU training was started`.
+
+RTX PRO 6000 throughput acceptance on 2026-08-22:
+
+- original `physical=4`, accumulation 8, PyAV: `1.338 s/step` → 37.18 h;
+- `physical=32`, accumulation 1, TorchCodec + ordered prefetch:
+  `0.365 s/step` → 10.15 h for the unchanged 100k schedule;
+- full 3,921 episodes / 569,249 frames / 73 tasks retained; no target data;
+- SIGTERM at step 51 resumed to step 100 with the same weight SHA-256 as the
+  uninterrupted run:
+  `8d61568909ec36550a4f525aef0720517285c429656970ddf18eaaa0c954d8f1`;
+- full test suite: 210 passed, 8 skipped.
+
+Persistent evidence:
+
+```text
+/mnt/vla/validation/M6/throughput/summary.md
+/mnt/vla/validation/M6/throughput/physical32_prefetch_100steps/
+/mnt/vla/validation/M6/throughput/physical32_prefetch_resume/
+/mnt/vla/runs/seen_expert_100k/checkpoints/step_000416/
+```
 
 Acceptance commands:
 
@@ -582,9 +607,9 @@ uv run python scripts/eval_target.py --train-config configs/train/target_replay_
 
 ## Next milestone
 
-M5 200-step SmolVLA smoke is closed on this VM. 100k `seen_expert` runs under
-tmux session `vla-seen-100k` via `scripts/run_durable_seen_train.sh` with
-output `$VLA_RUNS_DIR/seen_expert_100k`. After that:
+M5 200-step SmolVLA smoke is closed on this VM. Start a fresh optimized 100k
+`seen_expert` under tmux after committing the throughput changes; do not resume
+the preserved `physical=4` step-416 run. After that:
 `eval_seen --run-dir` and `select_seen_checkpoint.py --write`.
 Do not tune on target success. Then
 `eval_zero_shot.py` (3×20) and `eval_language_control.py` (paired correct/wrong),

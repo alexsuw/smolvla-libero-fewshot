@@ -29,6 +29,7 @@ def frozen_training_contract(config: TrainConfig) -> dict[str, Any]:
         "effective_batch_size": config.training.effective_batch_size,
         "physical_batch_size": config.training.physical_batch_size,
         "gradient_accumulation": config.training.gradient_accumulation,
+        "num_workers": config.training.num_workers,
         "seed": config.training.seed,
         "max_steps": config.training.max_steps,
         "model_repo_id": config.model.repo_id,
@@ -51,7 +52,7 @@ def assert_resume_compatible(checkpoint_dir: Path, config: TrainConfig) -> Train
     if current != expected:
         raise ResumeError(
             "resume forbids changing dataset revision, split, trainable scope, "
-            f"optimizer, scheduler, batch, or seed: {current!r} != {expected!r}"
+            f"optimizer, scheduler, batch, workers, or seed: {current!r} != {expected!r}"
         )
     return saved
 

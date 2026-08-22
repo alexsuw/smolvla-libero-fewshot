@@ -6,6 +6,7 @@ import os
 import random
 import signal
 import time
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -104,6 +105,12 @@ def _collate(samples: list[dict[str, Any]]) -> dict[str, Any]:
         else:
             batch[key] = values
     return batch
+
+
+def _fetch_samples(dataset: Any, indices: list[int]) -> list[dict[str, Any]]:
+    """Decode one ordered batch; safe to run in a single prefetch thread."""
+
+    return [dataset[index] for index in indices]
 
 
 def _move_batch(batch: dict[str, Any], device: Any) -> dict[str, Any]:
@@ -359,6 +366,11 @@ def run_full_training(
         )
     accumulation = resolve_gradient_accumulation(config.training)
     physical = int(config.training.physical_batch_size)
+    prefetch_enabled = (
+        mixer is None
+        and accumulation == 1
+        and config.training.num_workers > 0
+    )
     resolved_cap = cap_optimizer_steps(
         max_steps=config.training.max_steps,
         epochs=config.training.epochs,
@@ -415,7 +427,8 @@ def run_full_training(
                 "gradient_accumulation": accumulation,
                 "chunk_size": bundle["chunk_size"],
                 "num_workers_config": config.training.num_workers,
-                "num_workers_used": 0,
+                "num_workers_used": 1 if prefetch_enabled else 0,
+                "ordered_batch_prefetch": prefetch_enabled,
                 "wandb_mode": os.environ.get("WANDB_MODE", "disabled"),
                 "command": command,
             },
@@ -448,6 +461,9 @@ def run_full_training(
         n_samples, seed=config.training.seed, with_replacement=config.training.sample_with_replacement
     )
     sampler: FrameCursor | ReplayMixer = mixer if mixer is not None else cursor
+    prefetch_executor: ThreadPoolExecutor | None = None
+    pending_indices: list[int] | None = None
+    pending_future: Future[list[dict[str, Any]]] | None = None
     try:
         scope_report = assert_module_trainable_scope(
             policy,
@@ -471,6 +487,7 @@ def run_full_training(
                 sample_order=list(cursor.order) if mixer is None else [],
             )
             state["resolved_precision"] = precision
+            state["prefetched_indices"] = list(pending_indices or [])
             names = (run_dir / TRAINABLE_PARAMETERS_NAME).read_text(encoding="utf-8").splitlines()
             final_checkpoint = save_torch_checkpoint(
                 run_dir,
@@ -512,6 +529,9 @@ def run_full_training(
                 mixer.load_state_dict(sampler_state)
             else:
                 cursor.load_state_dict(sampler_state)
+                restored = train_state.get("prefetched_indices", [])
+                if restored:
+                    pending_indices = [int(index) for index in restored]
             events.emit("resume", {"global_step": global_step, "path": str(resume_from)})
             _append_log(run_dir, f"resumed from {resume_from} at step {global_step}")
         else:
@@ -520,6 +540,19 @@ def run_full_training(
                 run_dir,
                 f"full SmolVLA training start precision={precision} "
                 f"physical={physical} accum={accumulation}",
+            )
+
+        if prefetch_enabled:
+            prefetch_executor = ThreadPoolExecutor(
+                max_workers=1,
+                thread_name_prefix="vla-ordered-prefetch",
+            )
+            if pending_indices is None:
+                pending_indices = cursor.next_indices(physical)
+            pending_future = prefetch_executor.submit(
+                _fetch_samples,
+                dataset,
+                list(pending_indices),
             )
 
         if not (run_dir / TRAINABLE_PARAMETERS_NAME).exists():
@@ -550,9 +583,23 @@ def run_full_training(
                         "n_target": draw.n_target,
                         "n_replay": draw.n_replay,
                     }
+                elif prefetch_enabled:
+                    if pending_future is None or pending_indices is None:
+                        raise TrainError("ordered prefetch lost its pending batch")
+                    samples = pending_future.result()
+                    pending_future = None
+                    pending_indices = None
+                    if global_step + 1 < stop_at and not stop_requested["value"]:
+                        pending_indices = cursor.next_indices(physical)
+                        assert prefetch_executor is not None
+                        pending_future = prefetch_executor.submit(
+                            _fetch_samples,
+                            dataset,
+                            list(pending_indices),
+                        )
                 else:
                     indices = cursor.next_indices(physical)
-                    samples = [dataset[index] for index in indices]
+                    samples = _fetch_samples(dataset, indices)
                 window_n_target += int(mix_stats["n_target"])
                 window_n_replay += int(mix_stats["n_replay"])
                 batch = _move_batch(preprocessor(_collate(samples)), device)
@@ -691,6 +738,8 @@ def run_full_training(
         events.emit("run_failed", {"type": type(error).__name__})
         raise
     finally:
+        if prefetch_executor is not None:
+            prefetch_executor.shutdown(wait=True, cancel_futures=True)
         for sig, handler in previous_handlers.items():
             signal.signal(sig, handler)
         if lock.exists():

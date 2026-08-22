@@ -19,7 +19,9 @@ Torch architectures и BF16 support. Модель не предполагает 
 Host notes from the first RTX VM:
 
 - Ubuntu 24.04 apt FFmpeg is `6.1.1`. Full doctor requires exact `7.1.1` with
-  `libaom-av1` (this host built it into `~/.local`).
+  `libaom-av1`. A static-only build makes TorchCodec fall back to slow PyAV.
+  `scripts/build_shared_ffmpeg.sh` builds the pinned shared libraries under
+  `VLA_CACHE_DIR`; put both its `bin` and `lib` on the runtime paths.
 - Headless CUDA images often omit NVIDIA EGL. Install `libnvidia-gl-<driver>`
   so `/usr/share/glvnd/egl_vendor.d/10_nvidia.json` exists; otherwise
   `libero_two_camera` fails even when MuJoCo EGL passes.
@@ -94,6 +96,12 @@ set +a
 export VLA_DATASETS_DIR="${VLA_DATA_ROOT}/datasets"
 export VLA_RUNS_DIR="${VLA_DATA_ROOT}/runs"
 
+# One-time idempotent build; required for fast TorchCodec video decode.
+bash scripts/build_shared_ffmpeg.sh
+FFMPEG_SHARED="${VLA_CACHE_DIR}/ffmpeg-shared-7.1.1/install"
+export PATH="${FFMPEG_SHARED}/bin:$PATH"
+export LD_LIBRARY_PATH="${FFMPEG_SHARED}/lib:${LD_LIBRARY_PATH:-}"
+
 # 200-step SmolVLA smoke (config already has max_steps=200)
 tmux new-session -d -s vla-seen-smoke \
   "sg render -c 'sg video -c \"cd $(pwd) && bash scripts/run_durable_seen_train.sh --config configs/train/smoke.yaml --output-dir $VLA_RUNS_DIR/seen_smoke_200 --log-freq 1\"'"
@@ -110,9 +118,44 @@ save a checkpoint before exit. `kill -9` or power loss can lose up to
 `every_steps` (5000 on 100k). Console logs are `$OUTPUT_DIR.console.log` on
 the same durable disk. `lerobot-train` is never called.
 
+On the RTX PRO 6000, measured full-dataset throughput improved from
+`1.338 s/step` (`physical=4`, PyAV) to `0.365 s/step` (`physical=32`,
+TorchCodec, ordered one-batch prefetch). The 100k forecast is about 10.15 h.
+The optimization keeps every `libero_90` episode/task and effective batch 32;
+it does not select scenes or use target success.
+
 `--profile static` остаётся CPU toy smoke.
 `--stop-after` можно использовать только как resume-allowlist override на уже
 замороженном `max_steps`; для 200-step GPU smoke берите `configs/train/smoke.yaml`.
+
+## TensorBoard
+
+Run TensorBoard only on localhost:
+
+```bash
+tmux new-session -d -s vla-tensorboard \
+  "cd $(pwd) && uv run tensorboard --logdir $VLA_RUNS_DIR --host 127.0.0.1 --port 6006"
+```
+
+From the local machine, open an SSH tunnel and then visit
+`http://127.0.0.1:6006`:
+
+```bash
+ssh -L 6006:127.0.0.1:6006 <vm-user>@<vm-host>
+```
+
+Use Scalars for `train/loss`, `train/learning_rate`, `train/grad_norm`, and
+`train/samples_per_second`. Do not expose port 6006 on `0.0.0.0`.
+
+## Where weights are saved
+
+Training writes atomic `weights.pt`, optimizer/RNG state, checksums, and
+`COMPLETED.json` under
+`$VLA_RUNS_DIR/<run>/checkpoints/step_<N>/`. The seen run saves every 5,000
+steps. It does **not** upload to Hugging Face implicitly. A private Hugging
+Face model repository is optional only after final provenance/checksum
+verification. Until an object-storage or private-HF destination and
+credentials are configured, the durable VM disk is the only checkpoint copy.
 
 ## Seen probes and checkpoint freeze (TODO 24)
 

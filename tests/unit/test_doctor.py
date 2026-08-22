@@ -37,7 +37,7 @@ def test_static_profile_never_claims_hardware_acceptance() -> None:
     )
 
 
-def test_full_profile_stays_pending_until_lock_status_is_validated(
+def test_full_profile_accepts_validated_lock_and_hardware(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     platform, revisions = _configs()
@@ -75,5 +75,5 @@ def test_full_profile_stays_pending_until_lock_status_is_validated(
     )
 
     assert report["static_checks_passed"]
-    assert not report["acceptance_complete"]
-    assert report["hardware_validation_pending"]
+    assert report["acceptance_complete"]
+    assert not report["hardware_validation_pending"]

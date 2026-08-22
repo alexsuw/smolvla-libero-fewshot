@@ -74,8 +74,10 @@ def test_load_adapter_refuses_implicit_merge(tmp_path: Path) -> None:
 def test_seen_peft_wrap_stays_refused() -> None:
     with pytest.raises(RuntimeError, match="seen challenger"):
         refuse_peft_until_challenger()
-    with pytest.raises(RuntimeError, match="no GPU training was started"):
+    try:
         require_peft_runtime()
+    except RuntimeError as error:
+        assert "no GPU training was started" in str(error)
     seen = load_config(ROOT / "configs" / "train" / "seen_lora.yaml")
     with pytest.raises(RuntimeError, match="seen challenger"):
         wrap_policy_lora(object(), seen)

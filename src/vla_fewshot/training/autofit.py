@@ -17,7 +17,7 @@ def fit_physical_batch(
     *,
     try_batch: Callable[[int], None],
 ) -> TrainConfig:
-    """Try physical sizes 4, 2, 1 that divide the effective batch.
+    """Try divisors up to the effective batch, largest first.
 
     ``try_batch`` should run one forward+backward at that physical size and
     raise CUDA OOM on failure. Non-OOM errors propagate. After success the

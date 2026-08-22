@@ -45,7 +45,7 @@ def resolve_datasets_dir(output_root: str | Path | None = None) -> Path:
     if not env:
         raise RuntimeError(
             "set --output-root or VLA_DATASETS_DIR; dataset files must stay "
-            "outside the Git worktree"
+            "outside the Git worktree. no GPU training was started."
         )
     return Path(env).expanduser().resolve()
 

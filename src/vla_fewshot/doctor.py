@@ -394,7 +394,9 @@ def run_doctor(
             and revisions.status == "validated_m1"
             and not required_failures
         ),
-        "hardware_validation_pending": revisions.status != "validated_m1",
+        "hardware_validation_pending": (
+            profile != "full" or revisions.status != "validated_m1"
+        ),
         "checks": [asdict(check) for check in checks],
     }
     return report, paths

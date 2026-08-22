@@ -68,6 +68,28 @@ def test_resume_rejects_seed_change(tmp_path: Path) -> None:
         assert_resume_compatible(step_directory(run_dir, 100), other)
 
 
+def test_resume_rejects_prefetch_worker_change(tmp_path: Path) -> None:
+    config = _smoke()
+    run_dir = tmp_path / "run"
+    run_static_training(
+        config=config,
+        run_dir=run_dir,
+        command=["python", "scripts/train_seen.py"],
+        config_path=ROOT / "configs" / "train" / "smoke.yaml",
+        project_root=ROOT,
+        stop_after=100,
+    )
+    other = config.model_copy(
+        update={
+            "training": config.training.model_copy(
+                update={"num_workers": config.training.num_workers + 1}
+            )
+        }
+    )
+    with pytest.raises(ResumeError, match="workers"):
+        assert_resume_compatible(step_directory(run_dir, 100), other)
+
+
 def test_resume_auto_fit_yaml_uses_saved_batch(tmp_path: Path) -> None:
     yaml_config = load_config(ROOT / "configs" / "train" / "seen_expert.yaml")
     saved = yaml_config.model_copy(

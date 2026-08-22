@@ -10,6 +10,7 @@ from vla_fewshot.training.batching import auto_fit_candidates, with_resolved_bat
 from vla_fewshot.training.cursor import FrameCursor
 from vla_fewshot.training.data import action_delta_timestamps, select_episode_ids
 from vla_fewshot.training.full import require_full_training_runtime
+from vla_fewshot.training.full_loop import _fetch_samples
 from vla_fewshot.training.precision import resolve_precision
 from tests.helpers.libero_fixture import build_pinned_metadata_fixture
 from vla_fewshot.data.metadata import load_suite_metadata
@@ -27,7 +28,7 @@ def test_action_delta_timestamps_match_smolvla_chunk() -> None:
 
 
 def test_auto_fit_candidates_divide_effective_batch() -> None:
-    assert auto_fit_candidates(32) == (4, 2, 1)
+    assert auto_fit_candidates(32) == (32, 16, 8, 4, 2, 1)
     assert auto_fit_candidates(6) == (2, 1)
 
 
@@ -76,9 +77,18 @@ def test_fit_physical_batch_skips_oom_then_freezes() -> None:
             raise RuntimeError("CUDA out of memory")
 
     resolved = fit_physical_batch(config, try_batch=try_batch)
-    assert tried == [4, 2]
+    assert tried == [32, 16, 8, 4, 2]
     assert resolved.training.physical_batch_size == 2
     assert resolved.training.gradient_accumulation == 16
+
+
+def test_fetch_samples_preserves_requested_order() -> None:
+    dataset = [{"index": index} for index in range(5)]
+    assert _fetch_samples(dataset, [4, 1, 3]) == [
+        {"index": 4},
+        {"index": 1},
+        {"index": 3},
+    ]
 
 
 def test_full_runtime_gate_fails_closed_without_cuda() -> None:
