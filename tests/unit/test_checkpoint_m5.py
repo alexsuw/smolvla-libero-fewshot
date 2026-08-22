@@ -21,11 +21,18 @@ def _smoke():
     return load_config(ROOT / "configs" / "train" / "smoke.yaml")
 
 
+def test_torch_checkpoint_exports_checksum_helpers() -> None:
+    from vla_fewshot.training import torch_checkpoint as module
+
+    assert callable(module.file_checksums)
+    assert callable(module.sha256_file)
+    assert callable(module.verify_file_checksums)
+
+
 def test_incomplete_checkpoint_is_rejected(tmp_path: Path) -> None:
     directory = tmp_path / "step_000050"
     directory.mkdir()
-    (directory / "weights.json").write_text("{}
-", encoding="utf-8")
+    (directory / "weights.json").write_text("{}", encoding="utf-8")
     with pytest.raises(CheckpointError, match="COMPLETED.json"):
         verify_checkpoint_dir(directory)
 
@@ -86,8 +93,8 @@ def test_sync_refuses_conflicting_overwrite(tmp_path: Path) -> None:
     dest = tmp_path / "dst"
     source.mkdir()
     dest.mkdir()
-    (source / "manifest.json").write_text('{"a": 1}\n', encoding="utf-8")
-    (dest / "manifest.json").write_text('{"a": 2}\n', encoding="utf-8")
+    (source / "manifest.json").write_text('{"a": 1}', encoding="utf-8")
+    (dest / "manifest.json").write_text('{"a": 2}', encoding="utf-8")
     with pytest.raises(FileExistsError, match="refusing to overwrite"):
         execute_local_mirror(source, dest, execute=True)
 
@@ -95,8 +102,7 @@ def test_sync_refuses_conflicting_overwrite(tmp_path: Path) -> None:
 def test_prune_never_deletes(tmp_path: Path) -> None:
     run = tmp_path / "run" / "checkpoints" / "step_000100"
     run.mkdir(parents=True)
-    (run / CHECKPOINT_COMPLETED_NAME).write_text("{}
-", encoding="utf-8")
+    (run / CHECKPOINT_COMPLETED_NAME).write_text("{}", encoding="utf-8")
     report = inventory_checkpoints(tmp_path)
     assert report["delete_enabled"] is False
     assert (run / CHECKPOINT_COMPLETED_NAME).exists()
