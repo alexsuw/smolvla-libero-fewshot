@@ -269,7 +269,7 @@ pinned upstream revisions.
 - Wrap uses `peft.LoraConfig` + `get_peft_model` after origin `weights.pt`
   load and **before** the allowlist/optimizer. We do not call `lerobot-train`.
 - Target modules are the pinned expert `q_proj`/`v_proj` regex
-  `model\.vlm_with_expert\.lm_expert\..*\.(q|v)_proj`. This is the expert half of
+  `model\\.vlm_with_expert\\.lm_expert\\..*\\.(q|v)_proj`. This is the expert half of
   LeRobot `SmolVLAPolicy._get_default_peft_targets`. State/action projections
   stay full-rank because `target_lora.yaml` sets `train_state_projection` /
   `train_action_projections` true and `train_action_expert` false.
