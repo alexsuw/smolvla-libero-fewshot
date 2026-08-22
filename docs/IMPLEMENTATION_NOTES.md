@@ -183,8 +183,9 @@ pinned upstream revisions.
   overlay; tracked `final_v1` configs stay 20×300.
 - Initial-state fingerprints exclude the instruction string so paired
   language-control rollouts can share a scene while traces diverge.
-- Failure videos are PPM frames (same encoding gate as expert replay). MP4/AV1
-  waits on the M1 FFmpeg pin. Failure videos are never deleted by eval code.
+- Failure videos prefer FFmpeg `libaom-av1` MP4 via `shutil.which("ffmpeg")`
+  (the VM `PATH` overlay, never a hard-coded `/mnt/vla` path). If AV1 encode
+  fails, the writer falls back to PPM frames. Failures are never dropped.
 - `eval_seen` probe tasks are frozen in
   `configs/splits/pseudo_target_splits.json` (three `libero_90` texts). Static
   smoke still defaults to `synthetic_seen` so it cannot look like `final_v1`.
@@ -214,9 +215,11 @@ pinned upstream revisions.
   the held-out `libero_goal` targets. Train YAML values are checked against
   `configs/calibration.yaml`. The selected seen-checkpoint hash stays unset
   until `select_seen_checkpoint.py --write` on the VM.
-- `collect_results.py` drops `static_*` and `dev_soft_reset` rows. Cost-curve
-  figures are SVG with x ticks `{0,5,10,25}` so the CPU extra does not need
-  matplotlib. Spec PDF names remain a future optional export.
+- `collect_results.py` drops `static_*` and `dev_soft_reset` rows. Language
+  control reports both `final_language_control_v1` (live) and the legacy
+  `language_control_v1` alias. Cost-curve figures are SVG with x ticks
+  `{0,5,10,25}` so the CPU extra does not need matplotlib. Spec PDF names
+  remain a future optional export.
 - `make_report_tables.py --bundle` checksums markdown/tables/figures only.
 - TODO 23 **code** is the project SmolVLA trainer. The 100k GPU run is the
   live `seen_expert` job after the 200-step smoke. TODO 24 **code** is probe eval + selection;

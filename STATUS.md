@@ -402,10 +402,10 @@ Deferred hardware / paid runs (TODO 23 GPU, 24 live probes, 25–31, 36 live S3)
 
 ## Seen-pretrain trainer (TODO 23 code)
 
-Status: software and GPU throughput acceptance complete. The original
-`physical=4` run was cleanly interrupted at step 416 and preserved; a fresh
-optimized 100k run must start from the committed code because physical batch
-is part of the frozen resume contract.
+Status: GPU 100k run complete on this host. The original `physical=4` run was
+cleanly interrupted at step 416 and preserved. The optimized run finished at
+step 100000. `configs/selected_seen_checkpoint.yaml` stays
+`pending_seen_pretrain` until seen probes freeze it.
 
 Completed:
 
@@ -434,10 +434,18 @@ Persistent evidence:
 
 ```text
 /mnt/vla/validation/M6/throughput/summary.md
-/mnt/vla/validation/M6/throughput/physical32_prefetch_100steps/
-/mnt/vla/validation/M6/throughput/physical32_prefetch_resume/
+/mnt/vla/runs/seen__expert__libero90__nall__s42__20260822T010019Z__gd4b8fb8/
 /mnt/vla/runs/seen_expert_100k/checkpoints/step_000416/
 ```
+
+Completed 100k run (2026-08-22):
+
+- output: `/mnt/vla/runs/seen__expert__libero90__nall__s42__20260822T010019Z__gd4b8fb8`
+- `status=completed`, `global_step=100000`, `samples_seen=3200000`
+- final loss `0.23494`; weights SHA-256
+  `2cd510a594a87580f7368b782ca9b37332c0e5002d807093c759e95fbfb57c88`
+- 22 complete checkpoints (20 scheduled 5k–100k plus SIGTERM 1739/1833)
+- no target data; TensorBoard/CSV/JSONL written on `/mnt/vla`
 
 Acceptance commands:
 
@@ -607,12 +615,9 @@ uv run python scripts/eval_target.py --train-config configs/train/target_replay_
 
 ## Next milestone
 
-M5 200-step SmolVLA smoke is closed on this VM. Start a fresh optimized 100k
-`seen_expert` under tmux after committing the throughput changes; do not resume
-the preserved `physical=4` step-416 run. After that:
-`eval_seen --run-dir` and `select_seen_checkpoint.py --write`.
-Do not tune on target success. Then
-`eval_zero_shot.py` (3×20) and `eval_language_control.py` (paired correct/wrong),
-then the 18-cell `train_target` baseline, LoRA, and Replay-LoRA grids with
-`eval_target --run-dir` / `verify_baseline_eval.py`. Seen LoRA is skipped.
-Reporting (TODO 32–35) is already wired on CPU.
+The optimized 100k `seen_expert` run is complete. Next is TODO 24:
+`eval_seen --run-dir` on the 22 complete checkpoints and
+`select_seen_checkpoint.py --write`. Do not tune on target success. Then
+`eval_zero_shot.py` (3×20) and `eval_language_control.py` (paired correct/wrong).
+The 18-cell baseline waits until the persistent volume is large enough.
+Seen LoRA is skipped. Reporting (TODO 32–35) is already wired on CPU.

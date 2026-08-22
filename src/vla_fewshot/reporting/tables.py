@@ -9,7 +9,7 @@ from typing import Any
 
 from vla_fewshot.evaluation.metrics import wilson_interval
 from vla_fewshot.reporting.collect import read_results_long, summarize_cells
-from vla_fewshot.reporting.constants import COST_CURVE_N
+from vla_fewshot.reporting.constants import COST_CURVE_N, is_language_control_protocol
 
 
 def _write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, Any]]) -> None:
@@ -110,7 +110,7 @@ def write_report_tables(long_path: Path, tables_dir: Path) -> dict[str, Path]:
     language = [
         item
         for item in summaries
-        if item["protocol_id"] == "language_control_v1"
+        if is_language_control_protocol(str(item["protocol_id"]))
     ]
     _write_csv(
         tables_dir / "language_control.csv",
@@ -163,7 +163,7 @@ def write_report_tables(long_path: Path, tables_dir: Path) -> dict[str, Path]:
 def _main_results(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     grouped: dict[tuple[str, str, int], list[dict[str, Any]]] = defaultdict(list)
     for record in records:
-        if record.get("protocol_id") == "language_control_v1":
+        if is_language_control_protocol(str(record.get("protocol_id") or "")):
             continue
         if record.get("instruction_condition") not in {None, "", "correct"}:
             continue
@@ -219,7 +219,7 @@ def cost_curve_points(records: list[dict[str, Any]]) -> dict[str, list[tuple[int
 
     grouped: dict[tuple[str, str, int], list[dict[str, Any]]] = defaultdict(list)
     for record in records:
-        if record.get("protocol_id") == "language_control_v1":
+        if is_language_control_protocol(str(record.get("protocol_id") or "")):
             continue
         if record.get("instruction_condition") not in {None, "", "correct"}:
             continue

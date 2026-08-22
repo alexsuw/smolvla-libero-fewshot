@@ -9,7 +9,7 @@ Pipeline/environment defects не классифицируются как model 
 Wrong-instruction rollouts that keep the same initial state as the correct
 pair. Discriminating check: action-chunk divergence plus success drop.
 
-Status: pending live `language_control_v1` cells.
+Status: pending live `final_language_control_v1` cells.
 
 ## 2. Spatial / object identity
 

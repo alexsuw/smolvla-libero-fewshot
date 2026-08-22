@@ -39,7 +39,7 @@ from vla_fewshot.evaluation.video import (
     cell_id,
     should_persist_video,
     success_cells_from_records,
-    write_ppm_video,
+    write_rollout_video,
 )
 from vla_fewshot.logging.manifest import git_sha7, utc_timestamp
 from vla_fewshot.reproducibility import _git_state, atomic_write_json, redact_text
@@ -279,7 +279,7 @@ def run_static_evaluation(
         )
         record["trace_uri"] = write_trace(output_dir, key, traces)
         if persist:
-            record["video_uri"] = write_ppm_video(output_dir, key, frames)
+            record["video_uri"] = write_rollout_video(output_dir, key, frames)
             if record["success"]:
                 success_videos.add(
                     cell_id(

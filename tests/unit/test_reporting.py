@@ -37,6 +37,39 @@ def test_static_and_dev_protocols_are_not_reportable() -> None:
     assert not is_reportable_protocol("static_eval_v1")
     assert not is_reportable_protocol("dev_soft_reset")
     assert is_reportable_protocol("final_v1")
+    assert is_reportable_protocol("final_language_control_v1")
+    assert is_reportable_protocol("language_control_v1")
+
+
+def test_final_language_control_rows_are_reportable(tmp_path: Path) -> None:
+    run = tmp_path / "language"
+    store = RolloutStore(run / "rollouts.jsonl")
+    store.append(
+        _record(
+            protocol_id="final_language_control_v1",
+            method="seen",
+            n_demos=0,
+            train_seed=None,
+            instruction_condition="correct",
+        )
+    )
+    store.append(
+        _record(
+            protocol_id="final_language_control_v1",
+            method="seen",
+            n_demos=0,
+            train_seed=None,
+            eval_seed=1001,
+            instruction_condition="wrong",
+            success=False,
+        )
+    )
+    out = tmp_path / "tables"
+    report = collect_rollouts(tmp_path, output_dir=out, allow_incomplete=True)
+    assert report["n_records"] == 2
+    tables = write_report_tables(out / "results_long.csv", out)
+    language = tables["language_control"].read_text(encoding="utf-8")
+    assert "final_language_control_v1" in language
 
 
 def test_collect_skips_static_rows_and_builds_cost_curve(tmp_path: Path) -> None:

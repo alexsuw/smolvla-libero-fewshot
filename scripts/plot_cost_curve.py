@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 from vla_fewshot.reporting.plots import write_cost_curve_svg, write_language_control_svg
+from vla_fewshot.reporting.constants import is_language_control_protocol
 from vla_fewshot.reporting.tables import records_from_long
 
 
@@ -40,7 +41,7 @@ def main(argv: list[str] | None = None) -> int:
     language = [
         item
         for item in records
-        if item.get("protocol_id") == "language_control_v1"
+        if is_language_control_protocol(str(item.get("protocol_id") or ""))
     ]
     pairs: dict[str, dict[str, list[int]]] = {}
     for record in language:

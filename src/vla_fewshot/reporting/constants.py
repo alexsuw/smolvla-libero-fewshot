@@ -6,7 +6,14 @@ COST_CURVE_N = (0, 5, 10, 25)
 TARGET_TASK_SLUGS = ("drawer_middle", "bowl_stove", "wine_cabinet")
 TARGET_METHODS = ("baseline", "lora", "replay_lora")
 TRAIN_SEEDS = (42, 123)
-REPORT_PROTOCOL_IDS = frozenset({"final_v1", "language_control_v1", "seen_probe_v1"})
+LANGUAGE_CONTROL_PROTOCOL_IDS = frozenset(
+    {"final_language_control_v1", "language_control_v1"}
+)
+REPORT_PROTOCOL_IDS = frozenset({"final_v1", "seen_probe_v1"}) | LANGUAGE_CONTROL_PROTOCOL_IDS
+
+
+def is_language_control_protocol(protocol_id: str) -> bool:
+    return protocol_id in LANGUAGE_CONTROL_PROTOCOL_IDS
 EXCLUDED_PROTOCOL_PREFIXES = ("static_",)
 EXCLUDED_PROTOCOL_IDS = frozenset({"dev_soft_reset"})
 
