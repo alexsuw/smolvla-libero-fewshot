@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -20,10 +21,18 @@ def _smoke():
     return load_config(ROOT / "configs" / "train" / "smoke.yaml")
 
 
+def test_torch_checkpoint_exports_checksum_helpers() -> None:
+    from vla_fewshot.training import torch_checkpoint as module
+
+    assert callable(module.file_checksums)
+    assert callable(module.sha256_file)
+    assert callable(module.verify_file_checksums)
+
+
 def test_incomplete_checkpoint_is_rejected(tmp_path: Path) -> None:
     directory = tmp_path / "step_000050"
     directory.mkdir()
-    (directory / "weights.json").write_text("{}\n", encoding="utf-8")
+    (directory / "weights.json").write_text("{}", encoding="utf-8")
     with pytest.raises(CheckpointError, match="COMPLETED.json"):
         verify_checkpoint_dir(directory)
 
@@ -59,13 +68,33 @@ def test_resume_rejects_seed_change(tmp_path: Path) -> None:
         assert_resume_compatible(step_directory(run_dir, 100), other)
 
 
+def test_resume_auto_fit_yaml_uses_saved_batch(tmp_path: Path) -> None:
+    yaml_config = load_config(ROOT / "configs" / "train" / "seen_expert.yaml")
+    saved = yaml_config.model_copy(
+        update={
+            "training": yaml_config.training.model_copy(
+                update={"physical_batch_size": 4, "gradient_accumulation": 8}
+            )
+        }
+    )
+    ckpt = tmp_path / "step_005000"
+    ckpt.mkdir()
+    (ckpt / "config.resolved.yaml").write_text(
+        json.dumps(saved.model_dump(mode="json")),
+        encoding="utf-8",
+    )
+    loaded = assert_resume_compatible(ckpt, yaml_config)
+    assert loaded.training.physical_batch_size == 4
+    assert loaded.training.gradient_accumulation == 8
+
+
 def test_sync_refuses_conflicting_overwrite(tmp_path: Path) -> None:
     source = tmp_path / "src"
     dest = tmp_path / "dst"
     source.mkdir()
     dest.mkdir()
-    (source / "manifest.json").write_text('{"a": 1}\n', encoding="utf-8")
-    (dest / "manifest.json").write_text('{"a": 2}\n', encoding="utf-8")
+    (source / "manifest.json").write_text('{"a": 1}', encoding="utf-8")
+    (dest / "manifest.json").write_text('{"a": 2}', encoding="utf-8")
     with pytest.raises(FileExistsError, match="refusing to overwrite"):
         execute_local_mirror(source, dest, execute=True)
 
@@ -73,7 +102,7 @@ def test_sync_refuses_conflicting_overwrite(tmp_path: Path) -> None:
 def test_prune_never_deletes(tmp_path: Path) -> None:
     run = tmp_path / "run" / "checkpoints" / "step_000100"
     run.mkdir(parents=True)
-    (run / CHECKPOINT_COMPLETED_NAME).write_text("{}\n", encoding="utf-8")
+    (run / CHECKPOINT_COMPLETED_NAME).write_text("{}", encoding="utf-8")
     report = inventory_checkpoints(tmp_path)
     assert report["delete_enabled"] is False
     assert (run / CHECKPOINT_COMPLETED_NAME).exists()

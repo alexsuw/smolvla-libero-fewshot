@@ -205,9 +205,8 @@ Persistent evidence:
 
 ## M4 — SmolVLA inference and trainable scope
 
-Status: implementation and CPU/static acceptance complete; live weight load and
-env-accepted action remain deferred until the full SmolVLA smoke on this host.
-M1 is `validated_m1`.
+Status: complete on this host. Full SmolVLA smoke loaded pinned weights on
+CUDA and `env.step` accepted the converted 7D action. M1 is `validated_m1`.
 
 Completed:
 
@@ -242,19 +241,26 @@ artifacts/validation/M4/smoke_inference.md
 artifacts/validation/M4/acceptance.log
 ```
 
-Deferred hardware gates:
+Hardware result on 2026-08-22 (Linux GPU VM):
 
-- `uv sync --frozen --extra gpu` on Linux with CUDA;
-- `python scripts/smoke_inference.py --config configs/train/smoke.yaml --profile full`;
-- optional `--with-env` to prove `env.step` accepts the converted 7D action.
+- `smoke_inference.py --profile full --with-env`: `acceptance_complete=true`;
+- device `cuda`; hub SO100 features overlaid with LIBERO 2-camera / 8D / 7D;
+- `env_step.accepted=true` on `libero_goal` bowl-on-stove (dummy action
+  `is_success=false` as expected).
 
-These must pass before M5 training. Static CI cannot close this gate.
+Persistent evidence:
+
+```text
+/mnt/vla/validation/M4/full/smoke_inference.json
+/mnt/vla/validation/M4/full/trainable_parameters.txt
+/mnt/vla/logs/m4_smoke_inference.log
+```
 
 ## M5 — Training/checkpoint/resume smoke
 
-Status: implementation and CPU/static acceptance complete; live SmolVLA
-200-step training remains deferred until the M4 full smoke and dataset
-videos are in place. M1 is `validated_m1`; M3 expert replay is closed.
+Status: complete on this host. Live SmolVLA 200-step training wrote atomic
+torch checkpoints on durable storage. M1 is `validated_m1`; M3/M4 hardware
+gates are closed.
 
 Completed:
 
@@ -291,14 +297,23 @@ artifacts/validation/M5/resume_compare.md
 artifacts/validation/M5/registry.csv
 ```
 
-Deferred hardware gates:
+Hardware result on 2026-08-22 (Linux GPU VM):
 
-- `uv sync --frozen --extra gpu` on Linux with CUDA;
-- `python scripts/train_seen.py --config configs/train/smoke.yaml --profile full`;
-- Colab 0→100→200 on pinned SmolVLA with dataset videos.
+- `libero_90` and `libero_goal` videos on the pinned revision root;
+- first 200-step attempt `/mnt/vla/runs/seen_smoke_200` failed at step 100
+  (`NameError: file_checksums`); that directory is kept;
+- retry `train_seen.py --profile full` →
+  `/mnt/vla/runs/seen_smoke_200_r2` `status=completed` at step 200 with
+  `step_000100` and `step_000200` `COMPLETED.json` checkpoints, bf16.
 
-These must pass before paid long seen-pretrain (M6). Static CI cannot close
-the SmolVLA training gate.
+Persistent evidence:
+
+```text
+/mnt/vla/runs/seen_smoke_200_r2/
+/mnt/vla/runs/seen_smoke_200_r2.console.log
+/mnt/vla/logs/seen_smoke_200.tmux.log
+/mnt/vla/runs/seen_smoke_200/   # failed first attempt, not deleted
+```
 
 ## Eval protocol — fixed-seed rollouts (TODO 19)
 
@@ -381,13 +396,14 @@ artifacts/validation/reporting/
 
 Deferred hardware / paid runs (TODO 23 GPU, 24 live probes, 25–31, 36 live S3):
 
-- 100k `libero_90` seen-pretrain and seen probes;
+- 100k `libero_90` seen-pretrain (running) and seen probes after it finishes;
 - zero-shot, language control, baseline grid, LoRA on real targets;
 - verified remote backup of the final bundle to a real bucket.
 
 ## Seen-pretrain trainer (TODO 23 code)
 
-Status: software complete on CPU; the 100k CUDA run is deferred to the VM.
+Status: software complete on CPU; the 100k CUDA run is in progress on this VM
+under tmux `vla-seen-100k`.
 
 Completed:
 
@@ -566,9 +582,9 @@ uv run python scripts/eval_target.py --train-config configs/train/target_replay_
 
 ## Next milestone
 
-M3 expert replay is closed on this VM. Next: dataset videos, then
-`smoke_inference.py --profile full`, then 200-step `configs/train/smoke.yaml`.
-Do not start 100k `seen_expert` without a separate confirmation. After that:
+M5 200-step SmolVLA smoke is closed on this VM. 100k `seen_expert` runs under
+tmux session `vla-seen-100k` via `scripts/run_durable_seen_train.sh` with
+output `$VLA_RUNS_DIR/seen_expert_100k`. After that:
 `eval_seen --run-dir` and `select_seen_checkpoint.py --write`.
 Do not tune on target success. Then
 `eval_zero_shot.py` (3×20) and `eval_language_control.py` (paired correct/wrong),

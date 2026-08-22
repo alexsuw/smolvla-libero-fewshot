@@ -143,9 +143,18 @@ pinned upstream revisions.
   Weights are `weights.pt`; the static path still uses JSON toy weights.
   Frame decode stays in-process so the index cursor can resume exactly;
   `training.num_workers` is recorded but not used for DataLoader workers.
+  `save_torch_checkpoint` must import `file_checksums` / `sha256_file` /
+  `verify_file_checksums`; a missing import fails the first GPU save at
+  `every_steps` (this host: step 100, run left at
+  `$VLA_RUNS_DIR/seen_smoke_200`). LeRobot may warn that `torchcodec` cannot
+  load and fall back to `pyav`; that is not a substitute for the FFmpeg 7.1.1
+  pin used for eval videos.
 - Resume may override only `log_freq`, `destination`, `stop_after`,
   `backup_dir`, and `output_dir`. Dataset revision, split, trainable scope,
-  optimizer, scheduler, batch, and seed are frozen.
+  optimizer, scheduler, batch, and seed are frozen. YAML `physical_batch_size:
+  auto_fit` / `gradient_accumulation: auto` is not a contract change: resume
+  loads the integers already frozen in the checkpoint and skips a second
+  auto-fit so a crash cannot pick a different microbatch.
 - `sync_artifacts.py` default is dry-run and never deletes. Local directory
   destinations keep the M5 mirror. `file://` and `s3://` destinations use the
   object protocol: temporary prefix, size/checksum verify, remote
@@ -200,8 +209,8 @@ pinned upstream revisions.
   figures are SVG with x ticks `{0,5,10,25}` so the CPU extra does not need
   matplotlib. Spec PDF names remain a future optional export.
 - `make_report_tables.py --bundle` checksums markdown/tables/figures only.
-- TODO 23 **code** is the project SmolVLA trainer. The 100k GPU run itself
-  still waits on a Linux CUDA VM. TODO 24 **code** is probe eval + selection;
+- TODO 23 **code** is the project SmolVLA trainer. The 100k GPU run is the
+  live `seen_expert` job after the 200-step smoke. TODO 24 **code** is probe eval + selection;
   live probe rollouts wait on that same VM. TODO 25 (seen LoRA) is skipped.
   TODO 26 **code** is `eval_zero_shot.py` (3 tasks × ≥20, empty train list,
   frozen seen hash).   TODO 27 **code** is `eval_language_control.py` (paired

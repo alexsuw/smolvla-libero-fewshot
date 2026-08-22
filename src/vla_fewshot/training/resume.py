@@ -41,6 +41,13 @@ def assert_resume_compatible(checkpoint_dir: Path, config: TrainConfig) -> Train
     saved = TrainConfig.model_validate(saved_raw)
     current = frozen_training_contract(config)
     expected = frozen_training_contract(saved)
+    # YAML still has auto_fit/auto after the first run froze integers. Re-fitting
+    # on resume can pick a different batch if GPU memory changed; use the saved
+    # contract instead of treating auto_fit as a contract mismatch.
+    if current["physical_batch_size"] == "auto_fit":
+        current["physical_batch_size"] = expected["physical_batch_size"]
+    if current["gradient_accumulation"] == "auto":
+        current["gradient_accumulation"] = expected["gradient_accumulation"]
     if current != expected:
         raise ResumeError(
             "resume forbids changing dataset revision, split, trainable scope, "
