@@ -82,28 +82,35 @@ disk/Drive и передать `doctor.json` обратно в проект. З�
 
 ## Seen-pretrain on the VM (TODO 23)
 
-Код trainer готов. Не запускать 100k с этой машины. На Linux CUDA VM, после
-`bootstrap_vm.sh`, `uv sync --frozen --extra gpu`, dataset videos и doctor:
+Код trainer готов. 100k `seen_expert` только после M4 full smoke и 200-step
+`configs/train/smoke.yaml`. Длительный run — CLI в `tmux`, не IDE terminal.
+Данные и checkpoints только на persistent `VLA_DATA_ROOT`.
 
 ```bash
+export PATH="$HOME/.local/bin:$PATH"
+set -a
+source "$VLA_DATA_ROOT/bootstrap/<stamp>/runtime.env"
+set +a
 export VLA_DATASETS_DIR="${VLA_DATA_ROOT}/datasets"
 export VLA_RUNS_DIR="${VLA_DATA_ROOT}/runs"
 
 # 200-step SmolVLA smoke (config already has max_steps=200)
-uv run python scripts/train_seen.py \
-  --config configs/train/smoke.yaml \
-  --profile full \
-  --output-dir "$VLA_RUNS_DIR/seen_smoke_200"
+tmux new-session -d -s vla-seen-smoke \
+  "sg render -c 'sg video -c \"cd $(pwd) && bash scripts/run_durable_seen_train.sh --config configs/train/smoke.yaml --output-dir $VLA_RUNS_DIR/seen_smoke_200 --log-freq 1\"'"
 
-# Primary 100k seen-pretrain. auto_fit runs before the run directory exists.
-uv run python scripts/train_seen.py \
-  --config configs/train/seen_expert.yaml \
-  --profile full \
-  --output-dir "$VLA_RUNS_DIR/seen_expert_100k" \
-  --log-freq 50
+# Primary 100k seen-pretrain after the 200-step smoke succeeds.
+# auto_fit runs only on a fresh output-dir; crash resume reuses frozen batch.
+tmux new-session -d -s vla-seen-100k \
+  "sg render -c 'sg video -c \"cd $(pwd) && bash scripts/run_durable_seen_train.sh --config configs/train/seen_expert.yaml --output-dir $VLA_RUNS_DIR/seen_expert_100k --log-freq 50\"'"
 ```
 
-`--profile static` остаётся CPU toy smoke. `lerobot-train` не вызывается.
+The same `run_durable_seen_train.sh` command after a host crash resumes from
+`checkpoints/latest.json` (complete `COMPLETED.json` only). SIGTERM/SIGINT
+save a checkpoint before exit. `kill -9` or power loss can lose up to
+`every_steps` (5000 on 100k). Console logs are `$OUTPUT_DIR.console.log` on
+the same durable disk. `lerobot-train` is never called.
+
+`--profile static` остаётся CPU toy smoke.
 `--stop-after` можно использовать только как resume-allowlist override на уже
 замороженном `max_steps`; для 200-step GPU smoke берите `configs/train/smoke.yaml`.
 
