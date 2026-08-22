@@ -12,6 +12,7 @@ from vla_fewshot.data.layout import dataset_revision_root
 from vla_fewshot.data.metadata import load_suite_metadata
 from vla_fewshot.env.action_adapter import dataset_action_to_env
 from vla_fewshot.env.libero_env import LiberoRuntime, resolve_env_task_id
+from vla_fewshot.env.replay import load_replay_gate
 from vla_fewshot.evaluation.protocol import PlannedRollout
 from vla_fewshot.evaluation.toy import fingerprint_observation
 from vla_fewshot.model.features import (
@@ -23,6 +24,23 @@ from vla_fewshot.model.features import (
 from vla_fewshot.model.smolvla import load_pinned_smolvla
 from vla_fewshot.storage.layout import CHECKPOINT_WEIGHTS_PT_NAME
 from vla_fewshot.training.checkpoint import is_complete_checkpoint
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_GATE_ENV_TASK_IDS: dict[tuple[str, str], int] | None = None
+
+
+def _replay_gate_env_task_id(suite: str, task_text: str) -> int | None:
+    """Disambiguate duplicate LIBERO languages using the tracked replay gate."""
+
+    global _GATE_ENV_TASK_IDS
+    if _GATE_ENV_TASK_IDS is None:
+        gate = load_replay_gate(_REPO_ROOT / "configs" / "splits" / "replay_gate.json")
+        _GATE_ENV_TASK_IDS = {
+            (item.suite, item.task_text): item.env_task_id
+            for item in gate.episodes
+            if item.env_task_id is not None
+        }
+    return _GATE_ENV_TASK_IDS.get((suite, task_text))
 
 
 def _as_state_list(value: Any) -> list[float]:
@@ -181,7 +199,9 @@ class LiveRolloutAdapter:
         import torch
 
         task_id = resolve_env_task_id(
-            suite=spec.suite, task_text=spec.task_text, configured=None
+            suite=spec.suite,
+            task_text=spec.task_text,
+            configured=_replay_gate_env_task_id(spec.suite, spec.task_text),
         )
         env = self._env(spec.suite, task_id)
         observation, _info = env.reset(seed=spec.eval_seed)
