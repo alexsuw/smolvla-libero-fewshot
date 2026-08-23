@@ -122,7 +122,7 @@ def build_stub_parser(command: str) -> argparse.ArgumentParser:
         elif argument == "episode_id":
             parser.add_argument("--episode-id", type=int)
         elif argument == "n_demos":
-            parser.add_argument("--n-demos", type=int, choices=(5, 10, 25))
+            parser.add_argument("--n-demos", type=int, choices=(1, 2, 5, 10, 25))
         elif argument == "seed":
             parser.add_argument("--seed", type=int, choices=(42, 123))
         elif argument == "save_video":

@@ -268,7 +268,7 @@ def run_eval_cli(kind: EvalKind, argv: list[str] | None = None) -> int:
     parser.add_argument("--output-root", type=Path)
     parser.add_argument("--train-config", type=Path, default=train_default)
     if kind == "target":
-        parser.add_argument("--n-demos", type=int, choices=(0, 5, 10, 25))
+        parser.add_argument("--n-demos", type=int, choices=(0, 1, 2, 5, 10, 25))
         parser.add_argument("--seed", type=int, choices=(42, 123))
         parser.add_argument(
             "--steps",

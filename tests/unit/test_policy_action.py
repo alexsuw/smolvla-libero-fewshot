@@ -55,6 +55,16 @@ def test_live_adapter_requires_postprocessor() -> None:
         )
 
 
+def test_live_adapter_default_init_state_mode_stays_pinned() -> None:
+    adapter = LiveRolloutAdapter(
+        policy=object(),
+        preprocessor=object(),
+        postprocessor=object(),
+        device="cpu",
+    )
+    assert adapter.init_state_mode == "pin_rollout_index"
+
+
 def test_normalized_gripper_is_unnormalized_before_env() -> None:
     # libero_90 gripper z=-1.0 -> 0.529087 - 0.499153, still dataset-space.
     dataset = policy_action_to_dataset(

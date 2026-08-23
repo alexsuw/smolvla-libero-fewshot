@@ -51,7 +51,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("configs/splits/target_splits.json"),
     )
     parser.add_argument("--task", choices=TARGET_SLUGS)
-    parser.add_argument("--n-demos", type=int, choices=(5, 10, 25))
+    parser.add_argument("--n-demos", type=int, choices=(1, 2, 5, 10, 25))
     parser.add_argument("--seed", type=int, choices=TRAIN_SEEDS)
     parser.add_argument("--seen-checkpoint", type=Path)
     parser.add_argument("--resume-from", type=Path)

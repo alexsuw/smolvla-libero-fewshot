@@ -27,7 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--train-dir", type=Path)
     parser.add_argument("--eval-dir", type=Path)
     parser.add_argument("--task", choices=("drawer_middle", "bowl_stove", "wine_cabinet"))
-    parser.add_argument("--n-demos", type=int, choices=(5, 10, 25))
+    parser.add_argument("--n-demos", type=int, choices=(1, 2, 5, 10, 25))
     parser.add_argument("--seed", type=int, choices=(42, 123))
     parser.add_argument("--train-root", type=Path)
     parser.add_argument("--eval-root", type=Path)

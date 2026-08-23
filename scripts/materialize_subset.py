@@ -23,7 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         choices=("drawer_middle", "bowl_stove", "wine_cabinet"),
     )
-    parser.add_argument("--n-demos", type=int, required=True, choices=(5, 10, 25))
+    parser.add_argument("--n-demos", type=int, required=True, choices=(1, 2, 5, 10, 25))
     parser.add_argument("--output-dir", type=Path, required=True)
     return parser
 

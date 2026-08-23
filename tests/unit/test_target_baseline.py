@@ -33,12 +33,33 @@ def test_baseline_grid_is_18_independent_cells() -> None:
 
 def test_nested_episode_prefixes_match_tracked_splits() -> None:
     splits = load_target_splits(SPLITS)
+    one = episode_ids_for_cell(splits, task_slug="bowl_stove", n_demos=1)
+    two = episode_ids_for_cell(splits, task_slug="bowl_stove", n_demos=2)
     five = episode_ids_for_cell(splits, task_slug="bowl_stove", n_demos=5)
     ten = episode_ids_for_cell(splits, task_slug="bowl_stove", n_demos=10)
     twenty_five = episode_ids_for_cell(splits, task_slug="bowl_stove", n_demos=25)
+    assert one == [13]
+    assert two == [13, 15]
     assert five == [13, 15, 16, 22, 36]
+    assert one == two[:1] == five[:1]
+    assert two == five[:2]
     assert five == ten[:5]
     assert ten == twenty_five[:10]
+
+
+def test_low_n_grid_is_12_independent_cells() -> None:
+    from vla_fewshot.training.baseline import low_n_baseline_grid
+
+    grid = low_n_baseline_grid()
+    assert len(grid) == 12
+    assert len(set(grid)) == 12
+    assert ("drawer_middle", 1, 42) in grid
+    assert ("wine_cabinet", 2, 123) in grid
+    assert all(n_demos in {1, 2} for _, n_demos, _ in grid)
+    assert baseline_grid() == [
+        cell for cell in baseline_grid() if cell[1] in {5, 10, 25}
+    ]
+    assert len(baseline_grid()) == 18
 
 
 def test_cap_optimizer_steps_is_min_of_epochs_and_max_steps() -> None:

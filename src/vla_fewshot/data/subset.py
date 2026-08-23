@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from vla_fewshot.data.expected import DEMO_BUDGETS, TARGET_SUITE
+from vla_fewshot.data.expected import PREFIX_BUDGETS, TARGET_SUITE
 from vla_fewshot.data.splits import TargetSplits, load_target_splits
 from vla_fewshot.reproducibility import atomic_write_json
 
@@ -16,9 +16,13 @@ SUBSET_MANIFEST = "subset_manifest.json"
 
 
 def nested_ids(ids_25: list[int], n_demos: int) -> list[int]:
-    if n_demos not in DEMO_BUDGETS:
-        raise ValueError(f"n_demos must be one of {DEMO_BUDGETS}")
+    if n_demos not in PREFIX_BUDGETS:
+        raise ValueError(f"n_demos must be one of {PREFIX_BUDGETS}")
     ids = ids_25[:n_demos]
+    if n_demos >= 2:
+        assert ids[:1] == ids_25[:1]
+    if n_demos >= 5:
+        assert ids[:2] == ids_25[:2]
     if n_demos >= 10:
         assert ids[:5] == ids_25[:5]
     if n_demos == 25:

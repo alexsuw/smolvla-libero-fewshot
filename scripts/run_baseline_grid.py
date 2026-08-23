@@ -12,6 +12,7 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
+from vla_fewshot.data.expected import DEMO_BUDGETS, LOW_N_BUDGETS, PREFIX_BUDGETS
 from vla_fewshot.storage.layout import MANIFEST_NAME
 from vla_fewshot.training.baseline import baseline_grid
 from vla_fewshot.training.checkpoint import load_json
@@ -130,7 +131,23 @@ def main() -> int:
     parser.add_argument("--train-only", action="store_true")
     parser.add_argument("--eval-only", action="store_true")
     parser.add_argument("--eval-concurrency", type=int, default=2, choices=(1, 2, 4, 6))
+    parser.add_argument(
+        "--n-demos",
+        type=int,
+        nargs="+",
+        choices=PREFIX_BUDGETS,
+        default=list(DEMO_BUDGETS),
+        help="Demo budgets. Default is the frozen 5/10/25 grid. Pass 1 2 for the ceiling extension.",
+    )
     args = parser.parse_args()
+    budgets = tuple(args.n_demos)
+    if budgets == LOW_N_BUDGETS:
+        if args.runs_root == Path("/mnt/vla/runs/target_baseline"):
+            args.runs_root = Path("/mnt/vla/runs/target_baseline_n12")
+        if args.eval_root == Path("/mnt/vla/eval/target_baseline"):
+            args.eval_root = Path("/mnt/vla/eval/target_baseline_n12")
+        if args.status_path == Path("/mnt/vla/validation/TODO28/grid_status.json"):
+            args.status_path = Path("/mnt/vla/validation/TODO28_n12/grid_status.json")
 
     env = os.environ.copy()
     runtime = Path("/mnt/vla/bootstrap/20260821T233035Z/runtime.env")
@@ -151,7 +168,7 @@ def main() -> int:
             "run_dir": args.runs_root / cell_name(task, n_demos, seed),
             "eval_dir": args.eval_root / cell_name(task, n_demos, seed),
         }
-        for task, n_demos, seed in baseline_grid()
+        for task, n_demos, seed in baseline_grid(budgets)
     ]
     status = {
         "generated_at_utc": datetime.now(UTC).isoformat(),
@@ -159,6 +176,7 @@ def main() -> int:
         "fused_adamw": args.fused_adamw,
         "compile_model": args.compile,
         "concurrency": args.concurrency,
+        "n_demos": list(budgets),
         "cells": [cell["name"] for cell in cells],
     }
     args.status_path.parent.mkdir(parents=True, exist_ok=True)

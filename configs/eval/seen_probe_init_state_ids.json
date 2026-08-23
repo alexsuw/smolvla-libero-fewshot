@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "protocol_id": "seen_probe_v1",
+  "description": "init_state_id values that reproduce the frozen 24/30 seen-probe initial-state fingerprints. The Aug 22 measurement used seed-only reset on a reused LIBERO env, so the walked ids are not rollout_index. Do not replace these with 0..9 or a fresh seed-only walk.",
+  "checkpoint_sha256": "2cd510a594a87580f7368b782ca9b37332c0e5002d807093c759e95fbfb57c88",
+  "ids": {
+    "black_bowl_plate": {
+      "1000": 10,
+      "1001": 11,
+      "1002": 12,
+      "1003": 13,
+      "1004": 14,
+      "1005": 5,
+      "1006": 6,
+      "1007": 7,
+      "1008": 8,
+      "1009": 9
+    },
+    "drawer_bowl": {
+      "1000": 10,
+      "1001": 11,
+      "1002": 12,
+      "1003": 13,
+      "1004": 14,
+      "1005": 0,
+      "1006": 1,
+      "1007": 2,
+      "1008": 3,
+      "1009": 4
+    },
+    "book_caddy": {
+      "1000": 11,
+      "1001": 12,
+      "1002": 13,
+      "1003": 14,
+      "1004": 15,
+      "1005": 0,
+      "1006": 1,
+      "1007": 2,
+      "1008": 3,
+      "1009": 4
+    }
+  }
+}

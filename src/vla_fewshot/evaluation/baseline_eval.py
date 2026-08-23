@@ -199,8 +199,8 @@ def verify_baseline_run_eval(
 ) -> dict[str, Any]:
     if task_slug not in TARGET_SLUGS:
         raise BaselineEvalError(f"unknown target task {task_slug!r}")
-    if n_demos not in {5, 10, 25} or train_seed not in TRAIN_SEEDS:
-        raise BaselineEvalError("n_demos must be 5/10/25 and seed 42/123")
+    if n_demos not in {1, 2, 5, 10, 25} or train_seed not in TRAIN_SEEDS:
+        raise BaselineEvalError("n_demos must be 1/2/5/10/25 and seed 42/123")
     _origin_hash_ok(train_dir)
     episode_ids = episode_ids_for_cell(splits, task_slug=task_slug, n_demos=n_demos)
     checkpoints = list_complete_checkpoints(train_dir)

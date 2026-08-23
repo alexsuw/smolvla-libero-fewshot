@@ -36,8 +36,8 @@ class TargetSplitTask(_StrictModel):
         return self
 
     def ids_for_budget(self, n_demos: int) -> list[int]:
-        if n_demos not in {5, 10, 25}:
-            raise ValueError("n_demos must be one of 5, 10, 25")
+        if n_demos not in {1, 2, 5, 10, 25}:
+            raise ValueError("n_demos must be one of 1, 2, 5, 10, 25")
         return self.episode_ids_first_25[:n_demos]
 
 

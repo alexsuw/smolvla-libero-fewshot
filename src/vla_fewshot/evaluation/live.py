@@ -157,6 +157,9 @@ def seed_live_inference(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
+INIT_STATE_MODES = ("pin_rollout_index", "seed_only", "original_seen_probe")
+
+
 class LiveRolloutAdapter:
     """One SmolVLA + cached LIBERO env per task_id."""
 
@@ -170,6 +173,8 @@ class LiveRolloutAdapter:
         hard_reset: bool = True,
         normalization_suite: str | None = None,
         normalization_stats_digest: str | None = None,
+        init_state_mode: str = "pin_rollout_index",
+        init_state_ids: dict[tuple[str, int], int] | None = None,
     ) -> None:
         if not hard_reset:
             raise ValueError("hard_reset must stay true")
@@ -178,12 +183,20 @@ class LiveRolloutAdapter:
                 "action postprocessor is required after select_action; "
                 "refusing normalized actions as dataset-space"
             )
+        if init_state_mode not in INIT_STATE_MODES:
+            raise ValueError(
+                f"init_state_mode must be one of {INIT_STATE_MODES}, got {init_state_mode!r}"
+            )
         self.policy = policy
         self.preprocessor = preprocessor
         self.postprocessor = postprocessor
         self.device = device
         self.normalization_suite = normalization_suite
         self.normalization_stats_sha256 = normalization_stats_digest
+        self.init_state_mode = init_state_mode
+        self.init_state_ids = init_state_ids
+        if init_state_mode == "original_seen_probe" and not init_state_ids:
+            raise ValueError("original_seen_probe requires the frozen init_state_id table")
         self.record_artifacts = True
         self._envs: dict[tuple[str, int], LiberoRuntime] = {}
 
@@ -236,10 +249,26 @@ class LiveRolloutAdapter:
         )
         env = self._env(spec.suite, task_id)
         seed_live_inference(spec.eval_seed)
-        observation, _info = env.reset(
-            seed=spec.eval_seed,
-            init_state_id=spec.rollout_index,
-        )
+        if self.init_state_mode == "seed_only":
+            observation, _info = env.reset(seed=spec.eval_seed)
+            recorded_init_state_id = None
+        elif self.init_state_mode == "original_seen_probe":
+            key = (spec.task_slug, spec.eval_seed)
+            if self.init_state_ids is None or key not in self.init_state_ids:
+                raise RuntimeError(
+                    f"missing original seen-probe init_state_id for {key}"
+                )
+            recorded_init_state_id = int(self.init_state_ids[key])
+            observation, _info = env.reset(
+                seed=spec.eval_seed,
+                init_state_id=recorded_init_state_id,
+            )
+        else:
+            observation, _info = env.reset(
+                seed=spec.eval_seed,
+                init_state_id=spec.rollout_index,
+            )
+            recorded_init_state_id = spec.rollout_index
         fingerprint = fingerprint_observation(observation)
         self.policy.reset()
         traces: list[dict[str, Any]] = []
@@ -303,7 +332,8 @@ class LiveRolloutAdapter:
             "eval_seed": spec.eval_seed,
             "inference_seed": spec.eval_seed,
             "rollout_index": spec.rollout_index,
-            "init_state_id": spec.rollout_index,
+            "init_state_id": recorded_init_state_id,
+            "init_state_mode": self.init_state_mode,
             "protocol_id": spec.protocol_id,
             "instruction_condition": spec.instruction_condition,
             "instruction_text_used": spec.instruction_text_used,

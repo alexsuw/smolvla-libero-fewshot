@@ -6,7 +6,7 @@ from pathlib import Path
 
 from vla_fewshot.calibration import load_selected_checkpoint, resolve_selected_checkpoint_path
 from vla_fewshot.config import TrainConfig
-from vla_fewshot.data.expected import DEMO_BUDGETS, TARGET_TASKS
+from vla_fewshot.data.expected import DEMO_BUDGETS, LOW_N_BUDGETS, PREFIX_BUDGETS, TARGET_TASKS
 from vla_fewshot.data.splits import TargetSplits
 from vla_fewshot.data.subset import nested_ids
 from vla_fewshot.training.trainer import TrainError
@@ -48,6 +48,8 @@ def require_frozen_seen_origin(*, checkpoint: Path | None = None) -> tuple[Path,
 def episode_ids_for_cell(splits: TargetSplits, *, task_slug: str, n_demos: int) -> list[int]:
     if task_slug not in splits.tasks:
         raise TrainError(f"unknown target task {task_slug!r}")
+    if n_demos not in PREFIX_BUDGETS:
+        raise TrainError(f"n_demos must be one of {PREFIX_BUDGETS}")
     return nested_ids(splits.tasks[task_slug].episode_ids_first_25, n_demos)
 
 
@@ -99,13 +101,27 @@ def apply_cell_overrides(
     )
 
 
-def baseline_grid() -> list[tuple[str, int, int]]:
+def baseline_grid(
+    budgets: tuple[int, ...] | None = None,
+) -> list[tuple[str, int, int]]:
+    """Independent cells. Default is the frozen 18-cell 5/10/25 grid."""
+
+    chosen = DEMO_BUDGETS if budgets is None else tuple(budgets)
+    unknown = [item for item in chosen if item not in PREFIX_BUDGETS]
+    if unknown:
+        raise TrainError(f"unsupported baseline budgets {unknown}")
     return [
         (task, n_demos, seed)
         for task in TARGET_SLUGS
-        for n_demos in DEMO_BUDGETS
+        for n_demos in chosen
         for seed in TRAIN_SEEDS
     ]
+
+
+def low_n_baseline_grid() -> list[tuple[str, int, int]]:
+    """Ceiling extension: first 1 and first 2 demos only. Does not replace 5/10/25."""
+
+    return baseline_grid(LOW_N_BUDGETS)
 
 
 def baseline_command(

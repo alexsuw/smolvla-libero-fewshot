@@ -331,8 +331,54 @@ pinned upstream revisions.
   is not used: `auto_fit` only chooses the largest physical batch that
   divides `effective_batch_size` and fits VRAM. It does not fit learning
   rate, MEAN_STD, episode IDs, or the seen checkpoint.
+- After the frozen 5/10/25 curve saturated, a ceiling extension adds
+  nested `N=1` and `N=2` prefixes of the same first-25 list. Official
+  `DEMO_BUDGETS` stay `(5, 10, 25)`. Cosine `warmup_steps=1000` is
+  unchanged: every N=1/2 cell stops at 300–900 steps, so the whole run
+  stays inside warmup. That is a recorded baseline limitation, not a
+  retune.
+- Seen-retention of those adapted finals reuses `seen_probe_v1` env
+  semantics (three frozen `libero_90` probes, seeds 1000–1009, 300-step
+  horizon, replay-gate `env_task_id`) but **does not** swap MEAN_STD
+  back to suite-wide `libero_90`. Each adapted checkpoint keeps the
+  official target-eval overlay sidecar. The frozen seen 24/30 reference
+  is read from existing `seen_probes__gd4b8fb8` artifacts and is not
+  rerun. `eval_seen.py` still uses `libero_90` suite stats only.
+- The overlay 0/900 (`/mnt/vla/eval/seen_retention`) is a
+  **deployment-normalization** result: adapted weights were evaluated on
+  seen probes with target-overlay / `libero_goal` MEAN_STD. It is **not**
+  catastrophic forgetting and is not overwritten.
+- Weight-level forgetting is only
+  adapted weights + `libero_90` suite stats versus the reused frozen
+  24/30 (`2cd510a594a8…`, `libero_90` stats). Corrected artifacts live
+  under `/mnt/vla/eval/seen_retention_libero90`. The original 24/30 used
+  seed-only `reset(seed=eval_seed)` with no pin (`5fe415b`) on a reused
+  LIBERO env, so the walked `init_state_id`s are not `0..9`. The
+  corrected path pins the measured table in
+  `configs/eval/seen_probe_init_state_ids.json` (e.g. `black_bowl_plate`
+  seed 1000 → 10). Fresh seed-only and `rollout_index` both hash to
+  `eadd16b5…` and must not be used here. Official target /
+  language-control eval still pins `init_state_id=rollout_index`.
 - Epoch length is `ceil(n_samples / effective_batch_size)` optimizer steps,
   not physical micro-batches.
+
+## Hugging Face publishing
+
+- Seen weights stay in `alexsuw/smolvla-libero-fewshot-seen-expert-100k`.
+  Hub LFS `sha256` for `weights.pt` is the frozen
+  `2cd510a594a87580f7368b782ca9b37332c0e5002d807093c759e95fbfb57c88`; the
+  upload path does not rewrite that blob.
+- The 30 naive finals live in one family repo,
+  `alexsuw/smolvla-libero-fewshot-naive-baseline`, as
+  `<task>_n<NN>_s<seed>/`. `optimizer.pt` / `rng.pt` are omitted.
+- Collection slug is Hub-assigned:
+  `alexsuw/smolvla-libero-few-shot-6a8b009357482d2b4b9d3c2f`.
+- `scripts/upload_hf_naive_baseline.py` hashes each local `weights.pt`
+  against `COMPLETED.json` / `checksums.json` before upload and skips a
+  cell when the remote LFS digest already matches.
+- Two `drawer_middle` N=5 finals (`s42`, `s123`) store the overlay
+  MEAN_STD sidecar only at the run root, not in the checkpoint folder.
+  The Hub cell still receives that `normalization_stats.json`.
 
 ## Target LoRA ablation (TODO 30 code)
 

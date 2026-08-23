@@ -714,9 +714,71 @@ train **~5.0 h**, 360 eval **~0.4 h**. Six cells failed on a numpy
 JSON sidecar bug and will be retried after this launcher exits; the
 grid was not killed. `bowl_stove` N=10 is training with the fix.
 
+## TODO 28 N=1/2 ceiling extension
+
+Status: complete. Same frozen seen `step_100000` /
+`2cd510a594a87580f7368b782ca9b37332c0e5002d807093c759e95fbfb57c88`.
+12 finals + 240 rollouts. Isolated roots
+`/mnt/vla/runs/target_baseline_n12` and `/mnt/vla/eval/target_baseline_n12`.
+Did not rerun N=0/5/10/25. Warmup stayed 1000; every N=1/2 cell stopped
+inside warmup (300–900 steps). Wall 09:05:53Z–09:41:11Z (~35 min).
+
+Pooled: N=1 **109/120**, N=2 **100/120**. Frozen curve unchanged:
+N=0 1/60, N=5 107/120, N=10 116/120, N=25 114/120.
+
+Evidence: `/mnt/vla/validation/TODO28_n12/results.md`,
+`baseline_integrity_12.json`.
+
+## TODO 28 seen retention
+
+Status: complete. 30 naive finals × 3 probes × 10 seeds = 900
+rollouts, `GRID_EXIT 0` at 2026-08-23T11:41:40Z (~75 min). Frozen
+seen 24/30 was reused, not rerun. Integrity ok. Seen success is
+**0/900** on every adapted cell (Δ −0.80 vs 0.80). Target success
+unchanged. Overlay MEAN_STD was the official target-eval sidecar.
+
+Evidence: `/mnt/vla/validation/TODO28_retention/retention.md`.
+
+## TODO 28 retention 2×2 control
+
+Status: complete. 120 new rollouts, `GRID_EXIT 0` at
+2026-08-23T11:58:46Z. 900-sweep not rerun.
+
+2×2 (5-seed probes): frozen×libero_90 **12/15** (reused);
+frozen×overlay **0/60**; adapted×overlay **0/60** (reused);
+adapted×libero_90 **6/60**. Overlay stats alone zero the frozen
+seen policy, so 0/900 is not labeled parameter forgetting.
+
+Evidence: `/mnt/vla/validation/TODO28_retention_control/control.md`.
+
+## TODO 28 corrected seen retention (libero_90 stats)
+
+Status: complete. Overlay 0/900 left untouched and is **not**
+forgetting. `GRID_EXIT 0` at 2026-08-23T13:35:17Z (~66 min).
+Integrity ok. 900/900 rollouts. Frozen 24/30 reused.
+
+Corrected seen retention vs frozen 0.80: N=1 37/180, N=2 21/180,
+N=5/10/25 0/180. Target success unchanged.
+
+Evidence: `/mnt/vla/validation/TODO28_retention_libero90/retention.md`.
+
+## Hugging Face + GitHub publishing
+
+Status: complete. Public collection
+[`alexsuw/smolvla-libero-few-shot-6a8b009357482d2b4b9d3c2f`](https://huggingface.co/collections/alexsuw/smolvla-libero-few-shot-6a8b009357482d2b4b9d3c2f)
+groups:
+
+- [`alexsuw/smolvla-libero-fewshot-seen-expert-100k`](https://huggingface.co/alexsuw/smolvla-libero-fewshot-seen-expert-100k)
+  (existing 100k `weights.pt`, LFS SHA-256
+  `2cd510a594a87580f7368b782ca9b37332c0e5002d807093c759e95fbfb57c88`;
+  card refreshed, blob not re-uploaded; repo is public)
+- [`alexsuw/smolvla-libero-fewshot-naive-baseline`](https://huggingface.co/alexsuw/smolvla-libero-fewshot-naive-baseline)
+  (30 naive FT cells, each Hub LFS SHA-256 matches local
+  `COMPLETED.json`; `optimizer.pt` omitted)
+
+Upload CLI: `scripts/upload_hf_naive_baseline.py`. Weights stay out of Git.
+
 ## Next milestone
 
-TODO 28 18-cell training is in progress on this VM (`run_baseline_grid.py`,
-batch 32, train concurrency 2). After the 18 finals exist, the same
-launcher runs 360 rollouts (20 seeds × 18 checkpoints) without videos.
-Do not retune on target success. Seen LoRA is skipped.
+Do not retune warmup, stats, or hyperparameters on target or
+retention success. Seen LoRA is skipped.

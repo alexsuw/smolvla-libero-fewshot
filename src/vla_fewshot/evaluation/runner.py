@@ -50,7 +50,7 @@ from vla_fewshot.storage.checksums import sha256_file
 from vla_fewshot.training.checkpoint import CheckpointError, verify_checkpoint_dir
 
 EvalMethod = Literal["baseline", "lora", "replay_lora", "seen"]
-EvalStage = Literal["zero_shot", "target_eval", "language_control", "seen_probe"]
+EvalStage = Literal["zero_shot", "target_eval", "language_control", "seen_probe", "seen_retention"]
 
 
 @dataclass(frozen=True)
@@ -234,6 +234,7 @@ def run_static_evaluation(
     seed_values: Sequence[int] | None = None,
     skip_videos: bool = False,
     skip_traces: bool = False,
+    episode_ids: list[int] | None = None,
 ) -> EvalResult:
     os.environ["WANDB_MODE"] = "disabled"
     os.environ["WANDB_DISABLED"] = "true"
@@ -289,7 +290,11 @@ def run_static_evaluation(
             ),
             flush=True,
         )
-    episode_ids = training_episode_ids(splits, task_slug=task_slug, n_demos=n_demos)
+    episode_ids = (
+        list(episode_ids)
+        if episode_ids is not None
+        else training_episode_ids(splits, task_slug=task_slug, n_demos=n_demos)
+    )
     if stage == "zero_shot":
         from vla_fewshot.evaluation.zero_shot import assert_zero_shot_cell
 

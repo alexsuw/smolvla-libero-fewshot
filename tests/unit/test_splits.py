@@ -28,5 +28,5 @@ def test_target_budgets_are_exact_nested_prefixes() -> None:
 
 def test_unsupported_demo_budget_is_rejected() -> None:
     splits = load_target_splits(ROOT / "configs" / "splits" / "target_splits.json")
-    with pytest.raises(ValueError, match="5, 10, 25"):
+    with pytest.raises(ValueError, match="1, 2, 5, 10, 25"):
         splits.tasks["drawer_middle"].ids_for_budget(6)
