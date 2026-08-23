@@ -29,7 +29,7 @@ Held-out instructions (exact dataset text):
 | LIBERO paper | [arXiv:2306.03310](https://arxiv.org/abs/2306.03310) | — |
 | LIBERO code | [Lifelong-Robot-Learning/LIBERO](https://github.com/Lifelong-Robot-Learning/LIBERO) | via `hf-libero` |
 | LeRobot | [huggingface/lerobot](https://github.com/huggingface/lerobot) | `d451fe4f1f1b00a812f95aa9534389b5e42ab155` |
-| Weights on Hub | [seen 100k](https://huggingface.co/alexsuw/smolvla-libero-fewshot-seen-expert-100k) · [naive few-shot family](https://huggingface.co/alexsuw/smolvla-libero-fewshot-naive-baseline) · [collection](https://huggingface.co/collections/alexsuw/smolvla-libero-few-shot-6a8b009357482d2b4b9d3c2f) | see Hub cards |
+| Weights on Hub | [seen 100k](https://huggingface.co/alexsuw/smolvla-libero-fewshot-seen-expert-100k) · [naive family](https://huggingface.co/alexsuw/smolvla-libero-fewshot-naive-baseline) · [N=1 LoRA](https://huggingface.co/alexsuw/smolvla-libero-fewshot-lora-n1) · [N=1 stability](https://huggingface.co/alexsuw/smolvla-libero-fewshot-stability-n1) · [collection](https://huggingface.co/collections/alexsuw/smolvla-libero-few-shot-6a8b009357482d2b4b9d3c2f) | see Hub cards |
 
 Dataset suites used here:
 
@@ -46,6 +46,8 @@ from the frozen seen checkpoint (N=10 does not continue N=5).
 |---|---|
 | [`alexsuw/smolvla-libero-fewshot-seen-expert-100k`](https://huggingface.co/alexsuw/smolvla-libero-fewshot-seen-expert-100k) | Frozen seen policy, 100k steps, `weights.pt` SHA-256 `2cd510a594a87580f7368b782ca9b37332c0e5002d807093c759e95fbfb57c88` |
 | [`alexsuw/smolvla-libero-fewshot-naive-baseline`](https://huggingface.co/alexsuw/smolvla-libero-fewshot-naive-baseline) | 30 naive target finals: 3 tasks × N∈{1,2,5,10,25} × seeds {42,123} |
+| [`alexsuw/smolvla-libero-fewshot-lora-n1`](https://huggingface.co/alexsuw/smolvla-libero-fewshot-lora-n1) | 12 N=1 finals: Target-LoRA and Replay-LoRA × 3 tasks × 2 seeds; full weights and adapters |
+| [`alexsuw/smolvla-libero-fewshot-stability-n1`](https://huggingface.co/alexsuw/smolvla-libero-fewshot-stability-n1) | 12 N=1 finals: Frozen-Stats FT and Anchored FT (L2-SP) × 3 tasks × 2 seeds |
 
 Download one few-shot cell:
 
