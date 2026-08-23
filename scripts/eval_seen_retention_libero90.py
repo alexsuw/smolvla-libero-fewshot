@@ -116,8 +116,10 @@ def main() -> int:
         probe_config = load_eval_config(args.probe_config)
         weight_train = _load_train_config(args.weight_train_config)
         stats_train = _load_train_config(args.stats_train_config)
-        if weight_train.method != "baseline":
-            raise TrainError("corrected retention evaluates naive baseline finals only")
+        if weight_train.method not in {"baseline", "lora", "replay_lora"}:
+            raise TrainError(
+                "corrected retention requires baseline, lora, or replay_lora weights"
+            )
         if probe_config.stage != "seen_probe":
             raise TrainError("corrected retention must use configs/eval/seen_probe.yaml")
         if probe_config.protocol.protocol_id != "seen_probe_v1":
@@ -133,6 +135,27 @@ def main() -> int:
             splits, task_slug=args.task, n_demos=args.n_demos
         )
         verified = verify_adapted_final(args.run_dir)
+        if verified["method"] != weight_train.method:
+            raise TrainError(
+                f"run method {verified['method']!r} != weight config "
+                f"{weight_train.method!r}"
+            )
+        if verified["task_slug"] != args.task:
+            raise TrainError(
+                f"run task {verified['task_slug']!r} != requested {args.task!r}"
+            )
+        if verified["n_demos"] != args.n_demos:
+            raise TrainError(
+                f"run n_demos {verified['n_demos']!r} != requested {args.n_demos}"
+            )
+        if verified["train_seed"] != args.seed:
+            raise TrainError(
+                f"run train_seed {verified['train_seed']!r} != requested {args.seed}"
+            )
+        if verified["base_checkpoint_sha256"] != FROZEN_SEEN_SHA256:
+            raise TrainError(
+                "adapted run did not originate from the frozen seen checkpoint"
+            )
         checkpoint = verified["checkpoint"]
         init_state_ids = load_original_init_state_ids(ORIGINAL_INIT_STATE_IDS_PATH)
         seen_ckpt, seen_sha = resolve_frozen_eval_checkpoint(
@@ -195,7 +218,7 @@ def main() -> int:
                 task_slug=probe,
                 n_demos=args.n_demos,
                 train_seed=args.seed,
-                method="baseline",
+                method=weight_train.method,
                 stage="seen_retention",
                 project_root=Path.cwd(),
                 splits=None,

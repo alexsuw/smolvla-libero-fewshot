@@ -16,6 +16,7 @@ from vla_fewshot.training.replay_mixer import (
 )
 from vla_fewshot.training.target_lora import assert_target_train_config
 from vla_fewshot.training.trainer import TrainError
+from vla_fewshot.training.full_loop import _collate
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -122,6 +123,39 @@ def test_replay_does_not_change_target_episode_ids() -> None:
         22,
         36,
     ]
+
+
+def test_mixed_collate_drops_suite_specific_optional_fields() -> None:
+    import torch
+
+    common = {
+        "observation.images.image": torch.zeros(3, 2, 2),
+        "observation.images.wrist_image": torch.zeros(3, 2, 2),
+        "observation.state": torch.zeros(8),
+        "action": torch.zeros(7),
+        "task": "instruction",
+    }
+    target = {**common, "observation.states.ee_state": torch.zeros(3)}
+    replay = dict(common)
+    batch = _collate([target, replay])
+    assert "observation.states.ee_state" not in batch
+    assert batch["action"].shape == (2, 7)
+
+
+def test_mixed_collate_fails_when_a_required_policy_field_differs() -> None:
+    import torch
+
+    target = {
+        "observation.images.image": torch.zeros(3, 2, 2),
+        "observation.images.wrist_image": torch.zeros(3, 2, 2),
+        "observation.state": torch.zeros(8),
+        "action": torch.zeros(7),
+        "task": "instruction",
+    }
+    replay = dict(target)
+    replay.pop("observation.state")
+    with pytest.raises(TrainError, match="required SmolVLA fields"):
+        _collate([target, replay])
 
 
 def test_print_grid_replay_lora_lists_eighteen_commands() -> None:

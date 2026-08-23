@@ -132,6 +132,8 @@ def verify_adapted_final(run_dir: Path) -> dict[str, Any]:
         "task_slug": manifest.get("task_slug"),
         "n_demos": manifest.get("n_demos"),
         "train_seed": manifest.get("train_seed"),
+        "method": manifest.get("method"),
+        "base_checkpoint_sha256": manifest.get("base_checkpoint_sha256"),
     }
 
 
@@ -262,6 +264,7 @@ def corrected_retention_command(
     output_dir: Path,
     probes: tuple[str, ...] | None = None,
     seeds: tuple[int, ...] | None = None,
+    weight_train_config: Path | None = None,
 ) -> list[str]:
     command = [
         "python",
@@ -279,6 +282,8 @@ def corrected_retention_command(
         "--skip-videos",
         "--skip-traces",
     ]
+    if weight_train_config is not None:
+        command.extend(["--weight-train-config", str(weight_train_config)])
     if probes:
         for probe in probes:
             command.extend(["--probe", probe])

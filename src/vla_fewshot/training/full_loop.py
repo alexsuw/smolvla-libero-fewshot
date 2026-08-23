@@ -26,6 +26,13 @@ from vla_fewshot.logging.manifest import (
 )
 from vla_fewshot.logging.tensorboard import TensorBoardLogger
 from vla_fewshot.model.freezing import apply_trainable_scope, assert_module_trainable_scope
+from vla_fewshot.model.features import (
+    POLICY_ACTION,
+    POLICY_MAIN_IMAGE,
+    POLICY_STATE,
+    POLICY_TASK,
+    POLICY_WRIST_IMAGE,
+)
 from vla_fewshot.model.peft import wrap_policy_lora
 from vla_fewshot.model.processors import make_policy_processors
 from vla_fewshot.model.smolvla import load_pinned_smolvla
@@ -99,8 +106,31 @@ def _seed_everything(seed: int) -> None:
 def _collate(samples: list[dict[str, Any]]) -> dict[str, Any]:
     import torch
 
+    if not samples:
+        raise TrainError("cannot collate an empty training batch")
+    required = {
+        POLICY_ACTION,
+        POLICY_MAIN_IMAGE,
+        POLICY_STATE,
+        POLICY_TASK,
+        POLICY_WRIST_IMAGE,
+    }
+    common = set(samples[0])
+    for sample in samples[1:]:
+        common.intersection_update(sample)
+    missing = sorted(required - common)
+    if missing:
+        raise TrainError(
+            "mixed training samples do not share required SmolVLA fields: "
+            f"{missing}"
+        )
+
     batch: dict[str, Any] = {}
+    # LIBERO suites may expose suite-specific state fields. Preserve all common
+    # fields while dropping optional keys absent from either side of a mixed batch.
     for key in samples[0]:
+        if key not in common:
+            continue
         values = [sample[key] for sample in samples]
         first = values[0]
         if torch.is_tensor(first):

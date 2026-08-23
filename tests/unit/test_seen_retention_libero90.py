@@ -107,6 +107,19 @@ def test_corrected_command_cannot_select_overlay_or_old_tree() -> None:
     assert SMOKE_SEED in PROBE_SEEDS
 
 
+def test_corrected_command_can_select_lora_weight_config() -> None:
+    config = Path("configs/train/target_lora.yaml")
+    command = corrected_retention_command(
+        task="drawer_middle",
+        n_demos=1,
+        seed=42,
+        run_dir=Path("/tmp/run"),
+        output_dir=Path("/tmp/eval_libero90"),
+        weight_train_config=config,
+    )
+    assert command[command.index("--weight-train-config") + 1] == str(config)
+
+
 def test_libero90_stats_gate_refuses_overlay() -> None:
     assert_libero90_suite_stats(
         source="suite",
