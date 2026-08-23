@@ -61,6 +61,7 @@ def try_smolvla_minibatch(
     optimizer: Any,
     batch: dict[str, Any],
     precision: str,
+    additional_loss: Callable[[], Any] | None = None,
 ) -> None:
     """One training micro-step used only during auto-fit."""
 
@@ -71,7 +72,10 @@ def try_smolvla_minibatch(
     policy.train()
     optimizer.zero_grad(set_to_none=True)
     with autocast_cm(precision):  # type: ignore[arg-type]
-        loss, _details = policy.forward(batch)
+        target_loss, _details = policy.forward(batch)
+        loss = target_loss
+        if additional_loss is not None:
+            loss = target_loss.float() + additional_loss()
         if not torch.isfinite(loss):
             raise FloatingPointError("non-finite auto-fit loss")
         loss.backward()

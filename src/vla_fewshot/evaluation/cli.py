@@ -125,7 +125,14 @@ def _run_cell(
 ) -> int:
     n_demos: int | None
     train_seed: int | None
-    method: Literal["baseline", "lora", "replay_lora", "seen"]
+    method: Literal[
+        "baseline",
+        "lora",
+        "replay_lora",
+        "frozen_stats",
+        "anchored_l2sp",
+        "seen",
+    ]
     stage: Literal["zero_shot", "target_eval", "language_control", "seen_probe"]
     language = False
     if kind == "language_control":
@@ -151,8 +158,16 @@ def _run_cell(
         n_demos = args.n_demos
         train_seed = args.seed
         train = _load_train_config(args.train_config)
-        if train.method not in {"baseline", "lora", "replay_lora"}:
-            raise SystemExit("target eval --train-config must be baseline, lora, or replay_lora")
+        if train.method not in {
+            "baseline",
+            "lora",
+            "replay_lora",
+            "frozen_stats",
+            "anchored_l2sp",
+        }:
+            raise SystemExit(
+                "target eval --train-config must be a registered target method"
+            )
         method = train.method
         stage = "target_eval"
     else:

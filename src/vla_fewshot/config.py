@@ -242,6 +242,19 @@ class ReplayConfig(StrictModel):
         return self
 
 
+class FrozenStatsConfig(StrictModel):
+    source: Literal["libero_90_suite"]
+    suite: Literal["libero_90"]
+    expected_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class L2SPConfig(StrictModel):
+    enabled: Literal[True]
+    strength: float = Field(gt=0)
+    reduction: Literal["sum"]
+    anchor_dtype: Literal["fp32"]
+
+
 class TrainEnvConfig(StrictModel):
     control_mode: Literal["relative"]
     hard_reset: Literal[True]
@@ -291,7 +304,15 @@ class TrainConfig(StrictModel):
     kind: Literal["train"]
     schema_version: Literal[1]
     stage: Literal["smoke", "seen", "target"]
-    method: Literal["smoke", "expert", "lora", "baseline", "replay_lora"]
+    method: Literal[
+        "smoke",
+        "expert",
+        "lora",
+        "baseline",
+        "replay_lora",
+        "frozen_stats",
+        "anchored_l2sp",
+    ]
     model: ModelConfig
     dataset: TrainDatasetConfig
     trainable_scope: TrainableScope
@@ -302,8 +323,23 @@ class TrainConfig(StrictModel):
     tracking: TrackingConfig
     peft: PeftConfig | None = None
     replay: ReplayConfig | None = None
+    normalization: FrozenStatsConfig | None = None
+    l2sp: L2SPConfig | None = None
     env: TrainEnvConfig
     action: TrainActionConfig
+
+    @model_validator(mode="after")
+    def validate_method_specific_contracts(self) -> "TrainConfig":
+        frozen_methods = {"frozen_stats", "anchored_l2sp"}
+        if self.method in frozen_methods and self.normalization is None:
+            raise ValueError(f"{self.method} requires frozen normalization")
+        if self.method not in frozen_methods and self.normalization is not None:
+            raise ValueError("frozen normalization is only valid for matched frozen-stat methods")
+        if self.method == "anchored_l2sp" and self.l2sp is None:
+            raise ValueError("anchored_l2sp requires l2sp config")
+        if self.method != "anchored_l2sp" and self.l2sp is not None:
+            raise ValueError("l2sp config is only valid for anchored_l2sp")
+        return self
 
 
 class EvaluationProtocol(StrictModel):

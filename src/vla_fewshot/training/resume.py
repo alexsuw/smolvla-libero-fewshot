@@ -29,6 +29,8 @@ class ResumeError(ValueError):
 
 def frozen_training_contract(config: TrainConfig) -> dict[str, Any]:
     return {
+        "stage": config.stage,
+        "method": config.method,
         "dataset_repo_id": config.dataset.repo_id,
         "dataset_revision": config.dataset.revision,
         "dataset_suite": config.dataset.suite,
@@ -43,6 +45,14 @@ def frozen_training_contract(config: TrainConfig) -> dict[str, Any]:
         "max_steps": config.training.max_steps,
         "model_repo_id": config.model.repo_id,
         "model_revision": config.model.revision,
+        "normalization": (
+            config.normalization.model_dump(mode="json")
+            if config.normalization is not None
+            else None
+        ),
+        "l2sp": config.l2sp.model_dump(mode="json") if config.l2sp is not None else None,
+        "peft": config.peft.model_dump(mode="json") if config.peft is not None else None,
+        "replay": config.replay.model_dump(mode="json") if config.replay is not None else None,
     }
 
 

@@ -46,6 +46,11 @@ from vla_fewshot.storage.layout import (
     TENSORBOARD_DIRNAME,
     TRAINABLE_PARAMETERS_NAME,
 )
+from vla_fewshot.training.anchored import (
+    capture_l2sp_anchor,
+    l2sp_raw_penalty,
+    uses_frozen_seen_stats,
+)
 from vla_fewshot.training.autofit import fit_physical_batch, try_smolvla_minibatch
 from vla_fewshot.training.batching import is_cuda_oom, resolve_training_batch
 from vla_fewshot.training.checkpoint import train_state_payload
@@ -68,6 +73,7 @@ from vla_fewshot.training.resume import assert_resume_compatible
 from vla_fewshot.training.baseline import cap_optimizer_steps
 from vla_fewshot.training.stats import (
     jsonable_stats,
+    load_normalization_stats,
     overlay_dataset_state_action_stats,
     stats_digest,
     write_normalization_stats,
@@ -261,6 +267,9 @@ def prepare_full_training(
         config.trainable_scope,
         peft_enabled=config.peft is not None,
     )
+    l2sp_anchor = (
+        capture_l2sp_anchor(policy) if config.method == "anchored_l2sp" else None
+    )
     chunk_size = int(getattr(policy.config, "chunk_size", 50))
     dataset = _load_lerobot_dataset(
         config=config,
@@ -284,12 +293,40 @@ def prepare_full_training(
             fps=float(replay_meta.fps or fps),
             suite=SEEN_SUITE,
         )
-    stats = getattr(getattr(dataset, "meta", None), "stats", None) or meta.stats
+    normalization_suite = config.dataset.suite
+    normalization_scope = (
+        "selected_train_episodes_only" if episode_ids is not None else "suite"
+    )
+    normalization_source = "dataset_suite_metadata"
+    if uses_frozen_seen_stats(config):
+        from vla_fewshot.data.metadata import load_suite_metadata
+
+        if config.normalization is None:
+            raise TrainError("frozen-stat method is missing normalization config")
+        frozen_meta = load_suite_metadata(revision_root, config.normalization.suite)
+        stats = frozen_meta.stats
+        normalization_suite = config.normalization.suite
+        normalization_scope = "frozen_seen_suite"
+    else:
+        stats = getattr(getattr(dataset, "meta", None), "stats", None) or meta.stats
+        if episode_ids is not None:
+            stats = overlay_dataset_state_action_stats(stats, dataset)
+            normalization_source = "target_subset_overlay"
     if not stats:
-        raise TrainError("dataset stats.json is required for MEAN_STD training; identity smoke stats are forbidden")
-    if episode_ids is not None:
-        stats = overlay_dataset_state_action_stats(stats, dataset)
+        raise TrainError(
+            "dataset stats.json is required for MEAN_STD training; "
+            "identity smoke stats are forbidden"
+        )
     stats = jsonable_stats(stats)
+    normalization_digest = stats_digest(stats)
+    if uses_frozen_seen_stats(config):
+        assert config.normalization is not None
+        if normalization_digest != config.normalization.expected_sha256:
+            raise TrainError(
+                "canonical libero_90 normalization hash mismatch: "
+                f"{normalization_digest} != {config.normalization.expected_sha256}. "
+                "no GPU training was started."
+            )
     device = loaded["device"]
     preprocessor = _make_preprocessor(policy, stats, device)
     precision = resolve_precision(
@@ -302,8 +339,18 @@ def prepare_full_training(
             preprocessor(_collate([dataset[index % len(dataset)] for index in range(physical)])),
             device,
         )
+        additional_loss = None
+        if l2sp_anchor is not None:
+            assert config.l2sp is not None
+            additional_loss = lambda: (
+                config.l2sp.strength * l2sp_raw_penalty(policy, l2sp_anchor)
+            )
         try_smolvla_minibatch(
-            policy=policy, optimizer=scratch_opt, batch=batch, precision=precision
+            policy=policy,
+            optimizer=scratch_opt,
+            batch=batch,
+            precision=precision,
+            additional_loss=additional_loss,
         )
 
     if config.training.physical_batch_size == "auto_fit":
@@ -330,7 +377,11 @@ def prepare_full_training(
         "origin_sha256": origin_sha256,
         "replay_dataset": replay_dataset,
         "stats": stats,
-        "normalization_stats_sha256": stats_digest(stats),
+        "normalization_stats_sha256": normalization_digest,
+        "normalization_stats_suite": normalization_suite,
+        "normalization_stats_scope": normalization_scope,
+        "normalization_stats_source": normalization_source,
+        "l2sp_anchor": l2sp_anchor,
     }
 
 
@@ -371,6 +422,12 @@ def run_full_training(
     precision = bundle["precision"]
     n_samples = int(bundle["n_samples"])
     replay_dataset = bundle.get("replay_dataset")
+    l2sp_anchor = bundle.get("l2sp_anchor")
+    if config.method == "anchored_l2sp" and l2sp_anchor is None:
+        raise TrainError("Anchored FT is missing its frozen seen L2-SP anchor")
+    if config.method != "anchored_l2sp" and l2sp_anchor is not None:
+        raise TrainError("unexpected L2-SP anchor for an unanchored method")
+    anchor_policy = policy
     mixer: ReplayMixer | None = None
     if config.method == "replay_lora":
         if replay_dataset is None:
@@ -436,6 +493,25 @@ def run_full_training(
             manifest["task_slug"] = bundle["task_slug"]
             manifest["task_text"] = bundle.get("task_text")
             manifest["n_demos"] = bundle.get("n_demos")
+        manifest["normalization_stats_sha256"] = bundle.get(
+            "normalization_stats_sha256"
+        )
+        manifest["normalization_stats_suite"] = bundle.get(
+            "normalization_stats_suite"
+        )
+        manifest["normalization_stats_scope"] = bundle.get(
+            "normalization_stats_scope"
+        )
+        manifest["normalization_stats_source"] = bundle.get(
+            "normalization_stats_source"
+        )
+        if l2sp_anchor is not None:
+            assert config.l2sp is not None
+            manifest["l2sp"] = {
+                **config.l2sp.model_dump(mode="json"),
+                "anchor_checkpoint_sha256": bundle.get("origin_sha256"),
+                "anchor_parameter_count": l2sp_anchor.parameter_count,
+            }
         write_manifest(run_dir, manifest)
         atomic_write_json(
             run_dir / ENVIRONMENT_MANIFEST_NAME,
@@ -453,17 +529,31 @@ def run_full_training(
                 "wandb_mode": os.environ.get("WANDB_MODE", "disabled"),
                 "command": command,
                 "normalization_stats_sha256": bundle.get("normalization_stats_sha256"),
-                "normalization_stats_scope": (
-                    "selected_train_episodes_only"
-                    if episode_ids is not None
-                    else "suite"
+                "normalization_stats_suite": bundle.get("normalization_stats_suite"),
+                "normalization_stats_scope": bundle.get("normalization_stats_scope"),
+                "normalization_stats_source": bundle.get("normalization_stats_source"),
+                "l2sp_anchor_parameter_count": (
+                    l2sp_anchor.parameter_count if l2sp_anchor is not None else None
                 ),
             },
         )
 
     sidecar = run_dir / NORMALIZATION_STATS_NAME
-    if bundle.get("stats") is not None and not sidecar.is_file():
-        write_normalization_stats(sidecar, bundle["stats"])
+    if bundle.get("stats") is not None:
+        expected_stats_digest = str(bundle["normalization_stats_sha256"])
+        if sidecar.is_file():
+            sidecar_digest = stats_digest(load_normalization_stats(sidecar))
+            if sidecar_digest != expected_stats_digest:
+                raise TrainError(
+                    "existing normalization sidecar hash does not match the prepared "
+                    f"training stats: {sidecar_digest} != {expected_stats_digest}"
+                )
+        else:
+            written_digest = write_normalization_stats(sidecar, bundle["stats"])
+            if written_digest != expected_stats_digest:
+                raise TrainError(
+                    "written normalization sidecar hash does not match prepared stats"
+                )
 
     lock = _acquire_lock(run_dir)
     csv_logger = CsvMetricsLogger(run_dir / METRICS_CSV_NAME)
@@ -502,6 +592,13 @@ def run_full_training(
             output_dir=run_dir,
             peft_enabled=config.peft is not None,
         )
+        if (
+            l2sp_anchor is not None
+            and l2sp_anchor.parameter_count != scope_report["trainable_parameters"]
+        ):
+            raise TrainError(
+                "L2-SP anchor parameter count does not match the trainable allowlist"
+            )
         optimizer = _adamw(policy, config, fused=fused_adamw)
         if compile_model:
             policy = torch.compile(policy)
@@ -594,6 +691,9 @@ def run_full_training(
         policy.train()
         started = time.perf_counter()
         window_loss = 0.0
+        window_target_loss = 0.0
+        window_l2sp_raw = 0.0
+        window_l2sp_weighted = 0.0
         window_n_target = 0
         window_n_replay = 0
         while global_step < stop_at:
@@ -601,6 +701,9 @@ def run_full_training(
                 if accum_position == 0:
                     optimizer.zero_grad(set_to_none=True)
                     window_loss = 0.0
+                    window_target_loss = 0.0
+                    window_l2sp_raw = 0.0
+                    window_l2sp_weighted = 0.0
                     window_n_target = 0
                     window_n_replay = 0
                 data_t0 = time.perf_counter()
@@ -639,20 +742,39 @@ def run_full_training(
                 data_time = time.perf_counter() - data_t0
                 step_t0 = time.perf_counter()
                 with autocast_cm(precision):
-                    loss, _details = policy.forward(batch)
-                if not torch.isfinite(loss):
-                    raise FloatingPointError(f"non-finite loss at step {global_step}")
+                    target_loss, _details = policy.forward(batch)
+                if not torch.isfinite(target_loss):
+                    raise FloatingPointError(
+                        f"non-finite target loss at step {global_step}"
+                    )
+                raw_l2sp = torch.zeros((), device=device, dtype=torch.float32)
+                weighted_l2sp = raw_l2sp
+                if l2sp_anchor is not None:
+                    assert config.l2sp is not None
+                    raw_l2sp = l2sp_raw_penalty(anchor_policy, l2sp_anchor)
+                    weighted_l2sp = config.l2sp.strength * raw_l2sp
+                loss = target_loss.float() + weighted_l2sp
+                if not torch.isfinite(raw_l2sp) or not torch.isfinite(loss):
+                    raise FloatingPointError(
+                        f"non-finite L2-SP objective at step {global_step}"
+                    )
                 scaled = loss / float(accumulation)
                 if scaler is not None:
                     scaler.scale(scaled).backward()
                 else:
                     scaled.backward()
                 window_loss += float(loss.detach().item())
+                window_target_loss += float(target_loss.detach().item())
+                window_l2sp_raw += float(raw_l2sp.detach().item())
+                window_l2sp_weighted += float(weighted_l2sp.detach().item())
                 accum_position += 1
                 samples_seen += physical
                 if accum_position < accumulation:
                     continue
                 mean_loss = window_loss / float(accumulation)
+                mean_target_loss = window_target_loss / float(accumulation)
+                mean_l2sp_raw = window_l2sp_raw / float(accumulation)
+                mean_l2sp_weighted = window_l2sp_weighted / float(accumulation)
                 last_loss = mean_loss
                 lr = current_lr(
                     config.scheduler, config.optimizer, global_step, config.training.max_steps
@@ -703,6 +825,9 @@ def run_full_training(
                         {
                             "global_step": global_step,
                             "loss": mean_loss,
+                            "target_loss": mean_target_loss,
+                            "l2sp_raw_penalty": mean_l2sp_raw,
+                            "l2sp_weighted_penalty": mean_l2sp_weighted,
                             "lr": lr,
                             "n_target": window_n_target,
                             "n_replay": window_n_replay,
@@ -733,7 +858,22 @@ def run_full_training(
                         grad_norm=grad_norm,
                         samples_per_second=sps,
                     )
-                    _append_log(run_dir, f"step={global_step} loss={mean_loss:.8f} lr={lr:.8g}")
+                    if l2sp_anchor is not None:
+                        tb.add_scalar("train/target_loss", mean_target_loss, global_step)
+                        tb.add_scalar(
+                            "train/l2sp_raw_penalty", mean_l2sp_raw, global_step
+                        )
+                        tb.add_scalar(
+                            "train/l2sp_weighted_penalty",
+                            mean_l2sp_weighted,
+                            global_step,
+                        )
+                    _append_log(
+                        run_dir,
+                        f"step={global_step} loss={mean_loss:.8f} "
+                        f"target_loss={mean_target_loss:.8f} "
+                        f"l2sp={mean_l2sp_weighted:.8f} lr={lr:.8g}",
+                    )
                 if _should_save(global_step, config) or stop_requested["value"]:
                     _persist_checkpoint()
                 if stop_requested["value"]:

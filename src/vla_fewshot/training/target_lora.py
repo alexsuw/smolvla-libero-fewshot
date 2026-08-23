@@ -75,9 +75,12 @@ def assert_target_train_config(config: TrainConfig) -> None:
 
         assert_replay_lora_train_config(config)
         return
-    raise TrainError(
-        "unknown target method. no GPU training was started."
-    )
+    if config.method in {"frozen_stats", "anchored_l2sp"}:
+        from vla_fewshot.training.anchored import assert_frozen_stats_train_config
+
+        assert_frozen_stats_train_config(config)
+        return
+    raise TrainError("unknown target method. no GPU training was started.")
 
 
 def lora_command(

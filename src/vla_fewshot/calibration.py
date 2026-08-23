@@ -74,7 +74,11 @@ def assert_train_matches_calibration(
         if train.training.effective_batch_size != cal.seen_effective_batch_size:
             raise ValueError("seen batch size drifted from frozen calibration")
         return
-    if train.stage == "target" and train.method == "baseline":
+    if train.stage == "target" and train.method in {
+        "baseline",
+        "frozen_stats",
+        "anchored_l2sp",
+    }:
         if not _close(train.optimizer.lr, cal.target_baseline.lr):
             raise ValueError("target baseline lr drifted from frozen calibration")
         if train.training.max_steps != cal.target_max_steps:
@@ -119,6 +123,8 @@ def assert_frozen_calibration(*, root: Path = ROOT) -> None:
         root / "configs" / "train" / "target_baseline.yaml",
         root / "configs" / "train" / "target_lora.yaml",
         root / "configs" / "train" / "target_replay_lora.yaml",
+        root / "configs" / "train" / "target_frozen_stats.yaml",
+        root / "configs" / "train" / "target_anchored_l2sp.yaml",
     ]
     for path in train_files:
         loaded = load_config(path)

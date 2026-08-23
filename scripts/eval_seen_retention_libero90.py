@@ -116,9 +116,15 @@ def main() -> int:
         probe_config = load_eval_config(args.probe_config)
         weight_train = _load_train_config(args.weight_train_config)
         stats_train = _load_train_config(args.stats_train_config)
-        if weight_train.method not in {"baseline", "lora", "replay_lora"}:
+        if weight_train.method not in {
+            "baseline",
+            "lora",
+            "replay_lora",
+            "frozen_stats",
+            "anchored_l2sp",
+        }:
             raise TrainError(
-                "corrected retention requires baseline, lora, or replay_lora weights"
+                "corrected retention requires a registered adapted target checkpoint"
             )
         if probe_config.stage != "seen_probe":
             raise TrainError("corrected retention must use configs/eval/seen_probe.yaml")

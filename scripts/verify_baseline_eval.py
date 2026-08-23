@@ -34,7 +34,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--min-rollouts", type=int, default=20)
     parser.add_argument(
         "--method",
-        choices=("baseline", "lora", "replay_lora"),
+        choices=(
+            "baseline",
+            "lora",
+            "replay_lora",
+            "frozen_stats",
+            "anchored_l2sp",
+        ),
         default="baseline",
     )
     parser.add_argument(
@@ -52,6 +58,8 @@ def main(argv: list[str] | None = None) -> int:
         train_config = {
             "lora": Path("configs/train/target_lora.yaml"),
             "replay_lora": Path("configs/train/target_replay_lora.yaml"),
+            "frozen_stats": Path("configs/train/target_frozen_stats.yaml"),
+            "anchored_l2sp": Path("configs/train/target_anchored_l2sp.yaml"),
         }.get(args.method, Path("configs/train/target_baseline.yaml"))
         for command in baseline_eval_commands(train_config=train_config):
             print(" ".join(command))

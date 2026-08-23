@@ -10,6 +10,7 @@ from vla_fewshot.config import EvalConfig, TrainConfig
 from vla_fewshot.data.layout import dataset_revision_root, suite_root
 from vla_fewshot.data.metadata import load_suite_metadata
 from vla_fewshot.data.splits import load_target_splits
+from vla_fewshot.training.anchored import uses_frozen_seen_stats
 from vla_fewshot.training.baseline import episode_ids_for_cell
 from vla_fewshot.training.data import action_delta_timestamps
 from vla_fewshot.training.stats import (
@@ -20,7 +21,13 @@ from vla_fewshot.training.stats import (
 )
 
 TARGET_CHUNK_SIZE = 50
-NormSource = Literal["suite", "sidecar", "subset", "sidecar+subset"]
+NormSource = Literal[
+    "suite",
+    "sidecar",
+    "subset",
+    "sidecar+subset",
+    "sidecar+suite",
+]
 
 
 class NormalizationError(RuntimeError):
@@ -53,6 +60,10 @@ def normalization_stats_suite(
         return train_config.dataset.suite
     if eval_config.stage == "seen_probe":
         return eval_config.dataset.suite_seen
+    if uses_frozen_seen_stats(train_config):
+        if train_config.normalization is None:
+            raise NormalizationError("frozen-stat method is missing normalization config")
+        return train_config.normalization.suite
     return train_config.dataset.suite
 
 
@@ -149,6 +160,26 @@ def resolve_live_normalization(
             f"missing stats.json for {suite_name}; identity stats are forbidden for eval"
         )
     suite = meta.stats
+    if uses_frozen_seen_stats(train_config):
+        if train_config.normalization is None:
+            raise NormalizationError("frozen-stat method is missing normalization config")
+        sidecar = find_normalization_sidecar(checkpoint, run_dir)
+        if sidecar is None:
+            raise NormalizationError(
+                "frozen-stat target checkpoint requires normalization_stats.json"
+            )
+        sidecar_stats = load_normalization_stats(sidecar)
+        suite_digest = stats_digest(suite)
+        sidecar_digest = stats_digest(sidecar_stats)
+        expected_digest = train_config.normalization.expected_sha256
+        if suite_digest != expected_digest or sidecar_digest != expected_digest:
+            raise NormalizationError(
+                "frozen libero_90 normalization hash mismatch: "
+                f"suite={suite_digest} sidecar={sidecar_digest} "
+                f"expected={expected_digest}"
+            )
+        return sidecar_stats, suite_name, sidecar_digest, "sidecar+suite"
+
     sidecar_stats: dict[str, Any] | None = None
     subset_stats: dict[str, Any] | None = None
     if not uses_suite_stats_only(eval_config):

@@ -49,7 +49,14 @@ from vla_fewshot.reproducibility import _git_state, atomic_write_json, redact_te
 from vla_fewshot.storage.checksums import sha256_file
 from vla_fewshot.training.checkpoint import CheckpointError, verify_checkpoint_dir
 
-EvalMethod = Literal["baseline", "lora", "replay_lora", "seen"]
+EvalMethod = Literal[
+    "baseline",
+    "lora",
+    "replay_lora",
+    "frozen_stats",
+    "anchored_l2sp",
+    "seen",
+]
 EvalStage = Literal["zero_shot", "target_eval", "language_control", "seen_probe", "seen_retention"]
 
 
