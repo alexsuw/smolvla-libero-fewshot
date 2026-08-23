@@ -4,11 +4,11 @@ Audit date: 2026-08-23 UTC.
 
 ## Decision
 
-**GO after the evidence release below is remotely verified.** All final model
-checkpoints are on Hugging Face, and all portable experiment evidence is
-packaged for GitHub. No training or evaluation process was active during the
-audit. The VM may be stopped or destroyed after the GitHub assets pass their
-downloaded checksum check.
+**GO.** All final model checkpoints are on Hugging Face, and all portable
+experiment evidence is in the GitHub release below. Both release assets were
+downloaded after publication; the archive passed its companion SHA-256 and
+gzip integrity checks. No training or evaluation process was active during the
+audit. The VM and `/mnt/vla` may now be stopped or destroyed.
 
 ## Remote checkpoint coverage
 
@@ -87,7 +87,6 @@ Hugging Face are therefore the verified independent remote copies.
 - [x] All 55 final checkpoint cells verified remotely on HF.
 - [x] Portable non-weight evidence packaged, scanned, and checksummed.
 - [x] Evidence archive excludes checkpoint/state/data files.
-- [ ] GitHub release assets downloaded again and checksum-verified.
+- [x] GitHub release assets downloaded again and checksum-verified.
 
-Only the last item must be completed before destroying the VM or `/mnt/vla`.
-Stopping compute while retaining the volume is already safe.
+All shutdown gates are complete. It is safe to destroy the VM and `/mnt/vla`.
