@@ -29,10 +29,10 @@ make appendix
 
 The main paper is exactly four pages. The appendix contains all technical
 training figures and per-task/per-seed tables. Frozen final evidence is also
-summarized in `artifacts/validation/TASK2_N1/results.md`.
+summarized in `report/tables/task2_n1_results.md`.
 
 ## Validation
 
 - Main PDF: 4 pages, no overfull boxes or missing glyphs.
 - Appendix PDF: 6 pages.
-- Repository suite: 296 passed, 8 skipped.
+- Repository suite: 304 passed, 8 skipped.

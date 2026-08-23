@@ -1,5 +1,8 @@
 # Final report
 
+
+The frozen preregistration contained no final-target numerical claims; all
+numerical claims below were added only after the evaluation grid completed.
 The scientific report is complete:
 
 - [Four-page main paper](latex/build/paper.pdf)

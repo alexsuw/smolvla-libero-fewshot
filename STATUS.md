@@ -806,7 +806,7 @@ Replay Drawer has a protocol-level normalization pathology: its target-only
 gripper std is 1e-6, producing final mixed-replay losses of 1.44e10
 and 2.72e10. Results are retained as specified, not tuned or rerun.
 
-Evidence: artifacts/validation/TASK2_N1/results.md,
+Evidence: report/tables/task2_n1_results.md,
 /mnt/vla/runs/task2_n1, and /mnt/vla/eval/task2_n1.
 
 ## Scientific report
