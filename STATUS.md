@@ -782,3 +782,29 @@ Upload CLI: `scripts/upload_hf_naive_baseline.py`. Weights stay out of Git.
 
 Do not retune warmup, stats, or hyperparameters on target or
 retention success. Seen LoRA is skipped.
+
+## Task 2 N=1 Target-LoRA / Replay-LoRA
+
+Status: complete. Same frozen seen step_100000 /
+2cd510a594a87580f7368b782ca9b37332c0e5002d807093c759e95fbfb57c88.
+12/12 models, 240/240 target rollouts, and 360/360 corrected
+libero_90 retention rollouts passed integrity checks.
+
+Pooled results:
+
+- Naive: target **109/120**, retention **37/180** (reused, not rerun).
+- Target-LoRA: target **99/120**, retention **19/180**.
+- Replay-LoRA: target **67/120**, retention **2/180**.
+
+Both LoRA methods train 4,215,632 parameters versus 99,880,992 for Naive
+(23.69x fewer). Peak reserved VRAM was 6,944 MiB versus 7,540 MiB.
+Four-way official training took 1,007.7 s wall-clock. Replay used only
+libero_90 seen data at a fixed 25% fraction and was not selected using
+the probes. No success-based tuning or baseline rerun was performed.
+
+Replay Drawer has a protocol-level normalization pathology: its target-only
+gripper std is 1e-6, producing final mixed-replay losses of 1.44e10
+and 2.72e10. Results are retained as specified, not tuned or rerun.
+
+Evidence: artifacts/validation/TASK2_N1/results.md,
+/mnt/vla/runs/task2_n1, and /mnt/vla/eval/task2_n1.
