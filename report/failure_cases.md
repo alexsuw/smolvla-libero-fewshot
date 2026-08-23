@@ -1,28 +1,34 @@
 # Failure cases
 
-Минимум три содержательно разные ошибки будут размечены после final evaluation.
-Pipeline/environment defects не классифицируются как model failures. Слоты
-зафиксированы до grid, чтобы отчёт не подбирал кейсы post hoc.
+The paper uses three real failed zero-shot rollouts from the frozen seen policy,
+all at evaluation seed 1000. Four frames from each video are stored under
+`report/latex/imgs/failure_*.jpg`.
 
-## 1. Language / instruction following
+## 1. Drawer: spatial grounding
 
-Wrong-instruction rollouts that keep the same initial state as the correct
-pair. Discriminating check: action-chunk divergence plus success drop.
+The arm moves over the work surface but never reaches the middle drawer handle.
+Hypothesis: the instruction is not grounded to the correct handle. Separating
+test: compare original, handle-cropped, and point-marked images while measuring
+pre-contact end-effector distance.
 
-Status: pending live `final_language_control_v1` cells.
+## 2. Bowl: grasping or relational planning
 
-## 2. Spatial / object identity
+The arm reaches a plausible central area but does not grasp and place the bowl.
+Hypothesis: grasping is the first bottleneck. Separating test: compare the normal
+start with a matched start where the bowl is already in the gripper.
 
-A task that succeeds on one object but fails when the same verb is applied
-to a nearby distractor (bowl vs stove vs plate). Discriminating check:
-compare `bowl_stove` against the frozen `black_bowl_plate` probe.
+## 3. Wine: object identity or placement horizon
 
-Status: pending live `final_v1` cells.
+The first reach is directed toward a distractor region and the bottle is not
+picked. Separating test: cross a colour swap with a bottle-already-grasped start.
+This separates object identity from the cabinet-top placement stage.
 
-## 3. Forgetting / few-shot overfitting at N=5
+## Language control
 
-Naive target-only continuation that loses seen-domain skills or overfits
-the five demonstrations. Discriminating check: Replay-LoRA vs baseline at
-the same N, seeds, and eval protocol.
+Correct instructions give 1/60 success and wrong instructions 0/60 on identical
+initial-state fingerprints. Mean paired action L2 distances are 0.582 (Drawer),
+0.998 (Bowl), and 0.966 (Wine): language changes trajectories even though
+zero-shot competence is weak.
 
-Status: pending live baseline and Replay-LoRA cells.
+See the [main paper](latex/build/paper.pdf), Section 4, for the frames and full
+experimental designs.

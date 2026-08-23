@@ -808,3 +808,18 @@ and 2.72e10. Results are retained as specified, not tuned or rerun.
 
 Evidence: artifacts/validation/TASK2_N1/results.md,
 /mnt/vla/runs/task2_n1, and /mnt/vla/eval/task2_n1.
+
+## Scientific report
+
+Status: complete. The main scientific paper is exactly four pages and the
+separate technical appendix is six pages. Both PDFs compile cleanly with no
+overfull boxes, missing glyphs, or undefined citations.
+
+Deliverables:
+
+- `report/latex/paper.tex` and `report/latex/build/paper.pdf`;
+- `report/latex/appendix.tex` and `report/latex/build/appendix.pdf`;
+- reproducible plot source under `report/latex/scripts/`;
+- generated evaluation/training figures and three real rollout frame strips
+  under `report/latex/imgs/`;
+- build instructions in `report/latex/README.md`.

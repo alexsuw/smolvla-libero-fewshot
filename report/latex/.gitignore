@@ -1,0 +1,4 @@
+.tools/
+build/*
+!build/paper.pdf
+!build/appendix.pdf

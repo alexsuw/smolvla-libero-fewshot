@@ -1,0 +1,484 @@
+\documentclass[9pt,twocolumn]{extarticle}
+
+\usepackage[a4paper,top=12mm,bottom=13mm,left=12mm,right=12mm,columnsep=5mm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit}
+\usepackage{titlesec}
+\usepackage{caption}
+\usepackage{fancyhdr}
+\usepackage{cite}
+\usepackage{hyperref}
+
+\definecolor{ink}{HTML}{172B4D}
+\definecolor{blue}{HTML}{276FBF}
+\definecolor{green}{HTML}{2A9D8F}
+\definecolor{orange}{HTML}{F28E2B}
+\definecolor{red}{HTML}{D1495B}
+\definecolor{softblue}{HTML}{EAF2FB}
+\definecolor{softgray}{HTML}{F3F5F7}
+\definecolor{hf}{HTML}{FFD21E}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  citecolor=blue,
+  urlcolor=blue,
+  pdfauthor={Alexander Suvorov},
+  pdftitle={One Shot Is All You Need. Or Is It?}
+}
+\urlstyle{same}
+\graphicspath{{imgs/}}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{2.0pt}
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.08}
+\setlist[itemize]{leftmargin=*,nosep,topsep=2pt}
+\setlist[enumerate]{leftmargin=*,nosep,topsep=2pt}
+\titleformat{\section}{\large\bfseries\color{ink}}{\thesection}{0.45em}{}
+\titleformat{\subsection}{\normalsize\bfseries\color{ink}}{\thesubsection}{0.4em}{}
+\titlespacing*{\section}{0pt}{5pt}{2pt}
+\titlespacing*{\subsection}{0pt}{4pt}{1pt}
+\captionsetup{font=footnotesize,labelfont=bf,skip=2pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\scriptsize Alexander Suvorov}
+\fancyhead[R]{\scriptsize Few-Shot SmolVLA on LIBERO}
+\fancyfoot[C]{\scriptsize \thepage}
+\renewcommand{\headrulewidth}{0.2pt}
+\setlength{\headheight}{11pt}
+
+\newcommand{\linkbutton}[3]{%
+  \href{#3}{\tikz[baseline=-0.65ex]\node[
+    rounded corners=2pt,draw=#1,fill=#1!9,
+    inner xsep=5pt,inner ysep=2.2pt,text=ink,font=\sffamily\bfseries\footnotesize
+  ] {#2};}%
+}
+\newcommand{\result}[1]{\textbf{\color{blue}#1}}
+\newcommand{\bad}[1]{\textbf{\color{red}#1}}
+\newcommand{\smallcaps}[1]{\textsc{\MakeLowercase{#1}}}
+\newcommand{\failurestrip}[3]{%
+  \vspace{2pt}\includegraphics[width=\columnwidth]{#1}\\[-2pt]
+  {\scriptsize\textbf{#2.} #3\par}
+}
+\newenvironment{takeaway}{%
+  \begin{center}\begin{minipage}{0.94\columnwidth}\small
+  \color{ink}\setlength{\parskip}{2pt}\vspace{3pt}
+}{%
+  \vspace{3pt}\end{minipage}\end{center}
+}
+
+\begin{document}
+
+\twocolumn[{
+\begin{center}
+  {\fontsize{20}{22}\selectfont\bfseries\color{ink}
+  One Shot Is All You Need. Or Is It?}\\[-1pt]
+  {\large\color{blue} Few-Shot SmolVLA Adaptation on LIBERO}\\[5pt]
+  {\normalsize\textbf{Alexander Suvorov}}\\[-1pt]
+  {\small HSE University \quad $\cdot$ \quad August 2026\textsuperscript{1}}\\[5pt]
+  \linkbutton{black}{\texttt{<>} GitHub}{https://github.com/alexsuw/smolvla-libero-fewshot}
+  \hspace{4pt}
+  \linkbutton{orange}{HF Models \& Collection}{https://huggingface.co/collections/alexsuw/smolvla-libero-few-shot-6a8b009357482d2b4b9d3c2f}
+  \hspace{4pt}
+  \linkbutton{blue}{Dataset}{https://huggingface.co/datasets/nvidia/LIBERO_LeRobot_v3}
+\end{center}
+\vspace{2pt}
+\begin{center}
+\colorbox{softblue}{%
+\begin{minipage}{0.955\textwidth}
+\small
+\textbf{Abstract.}
+I study how many robot demonstrations are needed to adapt SmolVLA to three held-out LIBERO tasks.
+A seen policy is first trained for 100k steps on all available \texttt{libero\_90} data.
+Its zero-shot success is only \result{1/60}, but naive target fine-tuning with one demonstration reaches
+\result{109/120 (90.8\%)}. This is close to the best result at ten demonstrations,
+\result{116/120 (96.7\%)}. However, the same one-shot models retain only
+\bad{37/180 (20.6\%)} success on frozen seen-task probes, down from 80.0\%.
+Target-LoRA uses 23.7$\times$ fewer trainable parameters but reaches 82.5\% target success and 10.6\% retention.
+Replay-LoRA falls to 55.8\% and 1.1\%, partly because target-only action statistics make replay actions badly scaled.
+Thus, one shot can be enough for the new task, but not for preserving old skills.
+\end{minipage}}
+\end{center}
+\vspace{4pt}
+}]
+\footnotetext[1]{This project was prepared for the T-Lab 2026 VLA adaptation assignment (version 15 August 2026).}
+
+\section{Question and main findings}
+
+Vision-language-action (VLA) models aim to connect images and language to robot actions.
+Large models can transfer across robots and tasks, but collecting a new teleoperation dataset remains costly
+\cite{openvla2024,smolvla2025}. I ask a simple question:
+\emph{how far can a policy move the success--demonstration curve to the left?}
+
+I use SmolVLA, a compact $\sim$450M-parameter VLA \cite{smolvla2025}, and LIBERO,
+a benchmark for knowledge transfer in robot manipulation \cite{libero2023}.
+The fixed target tasks are the first three instructions in \texttt{libero\_goal}.
+I report binary environment success, not a learned proxy.
+
+My main findings are:
+
+\begin{itemize}
+  \item The main gain happens before five demonstrations. One demo already gives
+  90.8\% pooled target success; ten demos give 96.7\%.
+  \item More target data does not protect old skills. Corrected seen retention is
+  20.6\% at \(N=1\), 11.7\% at \(N=2\), and 0\% at \(N\geq5\).
+  \item Low-rank updates reduce trainable parameters, but they do not improve the
+  target--retention trade-off in my frozen \(N=1\) comparison.
+\end{itemize}
+
+\begin{takeaway}
+\textbf{Research answer.}
+The target cost curve is almost solved by one demonstration in this setup.
+The open problem is no longer only sample efficiency; it is \emph{stable} adaptation.
+\end{takeaway}
+
+\newpage
+
+\section{Experimental setup}
+
+\textbf{Data and split.}
+I use the video-backed LeRobot v3 conversion
+\texttt{nvidia/LIBERO\_LeRobot\_v3} \cite{liberolerobotv3,lerobot}.
+The seen set is the full available \texttt{libero\_90}: 3,921 episodes,
+569,249 frames, and 73 merged instruction rows. The three targets are held out by
+\emph{instruction text}, not by row number:
+
+\begin{center}
+\scriptsize
+\begin{tabularx}{\columnwidth}{@{}lX@{}}
+\toprule
+Short name & Exact target instruction\\
+\midrule
+Drawer & open the middle drawer of the cabinet\\
+Bowl & put the bowl on the stove\\
+Wine & put the wine bottle on top of the cabinet\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\textbf{Seen training.}
+Starting from \texttt{lerobot/smolvla\_base}, I freeze the vision encoder and
+VLM backbone, and train the Action Expert plus state/action projections.
+AdamW uses learning rate \(10^{-4}\), effective batch 32, bf16, 1k-step warm-up,
+then cosine decay. At 100k steps (3.2M samples), the final loss is 0.2349.
+Checkpoint selection uses only three \texttt{libero\_90} probes:
+21/30 at 60k, 23/30 at 80k, and 24/30 at 100k.
+The frozen weights have SHA-256 prefix \texttt{2cd510a594a8}.
+
+\textbf{Target protocol.}
+For each budget \(N\in\{1,2,5,10,25\}\), I take the first \(N\) demonstrations,
+never a hand-picked subset. Each cell has train seeds 42 and 123, followed by
+20 fixed rollouts (seeds 1000--1019). The pooled denominator is therefore 120.
+\(N=0\) has one frozen model and 60 rollouts. Evaluation runs for at most 300
+environment steps and executes ten actions from each 50-step predicted chunk.
+
+\begin{center}
+\resizebox{\columnwidth}{!}{%
+\begin{tikzpicture}[
+  node distance=3.5mm and 4.5mm,
+  box/.style={rounded corners=2pt,draw=ink!55,fill=softgray,align=center,minimum height=7mm,inner xsep=4pt},
+  train/.style={box,draw=blue,fill=softblue},
+  data/.style={box,draw=orange,fill=orange!9},
+  arr/.style={-{Latex[length=1.6mm]},thick,draw=ink!70}
+]
+\node[data] (seen) {\texttt{libero\_90}\\3,921 demos};
+\node[box,right=of seen] (base) {SmolVLA\\vision + VLM frozen};
+\node[train,right=of base] (expert) {Action Expert\\+ projections};
+\node[box,right=of expert] (actions) {$50\times7$ action chunk\\execute 10};
+\draw[arr] (seen) -- node[above,font=\scriptsize]{100k steps} (base);
+\draw[arr] (base) -- (expert);
+\draw[arr] (expert) -- (actions);
+\node[data,below=of expert] (target) {first \(N\) target demos};
+\draw[arr] (target) -- node[right,font=\scriptsize]{adapt} (expert);
+\end{tikzpicture}}
+{\scriptsize\textbf{Figure 1.} Training scope. Gray modules stay frozen; blue parameters are updated.}
+\end{center}
+
+The gripper conversion is tested before training:
+\(a_{\mathrm{env}}=1-2a_{\mathrm{data}}\).
+A stored demonstration replays with 100\% success, which catches the silent sign error.
+
+\clearpage
+
+\section{Cost curve and adaptation results}
+
+\subsection{Preregistered prediction}
+
+Before final target evaluation, I committed the prediction that the largest gain
+would be from \(N=0\) to \(N=5\), with saturation from \(N=10\) to \(N=25\).
+I also predicted Replay-LoRA \(>\) Target-LoRA \(>\) naive fine-tuning at \(N=5\).
+The optimizer, LoRA rank, replay ratio, and checkpoint were fixed without target success.
+
+\begin{center}
+\includegraphics[width=\columnwidth]{cost_curve.pdf}\\[-2pt]
+{\scriptsize\textbf{Figure 2.} Pooled target success. Error bars are 95\% Wilson intervals.}
+\end{center}
+
+\textbf{Naive baseline.}
+The curve confirms the early-gain prediction, but the useful regime starts even
+earlier than expected. Success jumps from 1/60 zero-shot to 109/120 at \(N=1\).
+The \(N=1\) Wilson interval is [84.3, 94.8]\%, so the point is already close to
+the later ceiling. \(N=2\) is worse than \(N=1\); extra demonstrations do not
+guarantee a monotonic result with only two train seeds.
+
+\begin{center}
+\scriptsize
+\begin{tabular}{@{}rcccc@{}}
+\toprule
+\(N\) & Overall & Drawer & Bowl & Wine\\
+\midrule
+0  & 1/60   & 1/20 & 0/20 & 0/20\\
+1  & 109/120& 36/40& 40/40& 33/40\\
+2  & 100/120& 30/40& 38/40& 32/40\\
+5  & 107/120& 31/40& 40/40& 36/40\\
+10 & 116/120& 39/40& 40/40& 37/40\\
+25 & 114/120& 40/40& 40/40& 34/40\\
+\bottomrule
+\end{tabular}\\[-1pt]
+{\scriptsize\textbf{Table 1.} Exact target successes for naive adaptation.}
+\end{center}
+
+\begin{takeaway}
+The standard \(0/5/10/25\) curve would hide the most useful result:
+\(N=1\) gives a 89.2-point gain over zero-shot.
+\end{takeaway}
+
+\newpage
+
+\subsection{Corrected seen retention}
+
+A target-only model may look strong while forgetting its original tasks.
+I evaluate every adapted checkpoint on three frozen \texttt{libero\_90} probes,
+ten seeds each, always with the original \texttt{libero\_90} statistics.
+
+\begin{center}
+\includegraphics[width=\columnwidth]{retention_curve.pdf}\\[-2pt]
+{\scriptsize\textbf{Figure 3.} Corrected retention. \(N=0\) is the frozen 24/30 reference; each adapted point pools 180 rollouts.}
+\end{center}
+
+Retention collapses as target exposure grows: 37/180 at \(N=1\), 21/180 at
+\(N=2\), and 0/180 for \(N=5,10,25\). Across the 30 adapted cells,
+target success and retention have Pearson \(r=0.026\). Target success alone
+is therefore a poor measure of a useful lifelong policy.
+
+\subsection{Task 2: two low-rank methods}
+
+Because the naive curve is near ceiling, I use the allowed \(N=1\) setting.
+\textbf{Target-LoRA} puts rank-64 adapters in the Action Expert and trains the
+projections \cite{lora2022}. \textbf{Replay-LoRA} adds a fixed 25\% replay
+stream from \texttt{libero\_90}; it never uses other target demos and replay
+is not selected by the retention probes. All 12 models start independently
+from the same frozen checkpoint.
+
+\begin{center}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+Method & Target & Retain & Params & Wall & VRAM\\
+ & (\%) & (\%) & trainable & (s/cell) & (MiB)\\
+\midrule
+Naive & \textbf{90.8} & \textbf{20.6} & 99.9M & \textbf{162.8} & 7,540\\
+Target-LoRA & 82.5 & 10.6 & 4.22M & 244.0 & \textbf{6,944}\\
+Replay-LoRA & 55.8 & 1.1 & 4.22M & 309.3 & \textbf{6,944}\\
+\bottomrule
+\end{tabular}}\\[-1pt]
+{\scriptsize\textbf{Table 2.} Matched \(N=1\) result. Wall time includes concurrent load.}
+\end{center}
+
+Neither method beats naive fine-tuning. Target-LoRA uses 23.7$\times$ fewer
+trainable parameters and 7.9\% less reserved VRAM, but loses 8.3 target points
+and 10.0 retention points. Replay-LoRA loses 35.0 and 19.4 points.
+For Drawer, its final losses reach \(1.44\times10^{10}\) and
+\(2.72\times10^{10}\): the one target demo has gripper standard deviation
+\(10^{-6}\), so applying target-only statistics to mixed seen replay creates
+extreme normalized actions. This explains the numerical failure, but not all
+of the retention loss on Bowl and Wine.
+
+\begin{takeaway}
+Parameter efficiency is not retention. A small update can still move the policy
+in a harmful direction, and replay is unsafe when data sources do not share a
+common action scale.
+\end{takeaway}
+
+\clearpage
+
+\section{Three real failures}
+
+All strips below come from failed frozen-policy zero-shot rollouts at evaluation
+seed 1000. Frames are at 0, 5, 10, and 15 seconds; no successful run was selected.
+
+\failurestrip{failure_drawer.jpg}{Drawer}{The arm moves over the work surface and bowls, but never reaches the middle drawer handle.}
+\failurestrip{failure_bowl.jpg}{Bowl}{The arm reaches the central dish area, but it does not grasp and move the bowl to the stove.}
+\failurestrip{failure_wine.jpg}{Wine}{The first reach is toward a distractor region; the bottle is not picked or placed on the cabinet.}
+
+\vspace{3pt}
+\begin{takeaway}
+These videos suggest that zero-shot failure is not one single problem.
+The Drawer and Wine runs fail before contact, while Bowl reaches a plausible
+area but does not complete the grasp--place sequence.
+\end{takeaway}
+
+\newpage
+
+\subsection{Hypotheses and separating tests}
+
+\textbf{1. Drawer: spatial grounding vs.\ low-level control.}
+My hypothesis is that the language token 'middle drawer' is not grounded to
+the correct handle. I would compare the original image with a handle crop and
+a point-marked image, keeping the initial state and instruction fixed.
+The key metric is end-effector distance to the handle before any contact.
+A better approach under crops would support a perception/grounding failure;
+unchanged distance would point to the policy or action decoder.
+
+\textbf{2. Bowl: grasping vs.\ relational planning.}
+The reach is plausible, so the failure may be the grasp rather than the
+instruction 'on the stove.' I would create two matched starts: the normal
+scene and the same scene with the bowl already in the gripper. Success only
+from the second start would isolate grasping. Failure in both starts would
+support a place-relation or long-horizon planning problem.
+
+\textbf{3. Wine: object identity vs.\ place horizon.}
+The early motion appears aimed at a distractor. I would cross two interventions:
+swap the bottle/distractor colours, and start with the bottle already grasped.
+If the reach follows colour, object identity is the problem. If the grasped
+start still cannot place the bottle, the main bottleneck is the cabinet-top
+relation or action horizon.
+
+\subsection{Does the policy read language?}
+
+I replay the same 60 initial-state fingerprints with the correct target
+instruction and with an instruction from another task. Correct text gives
+1/60 successes; wrong text gives 0/60. This is too sparse for a success-only
+claim, so I also compare actions. The mean paired action-sequence \(L_2\)
+distance is 0.582 for Drawer, 0.998 for Bowl, and 0.966 for Wine.
+Thus, language changes behavior, even though zero-shot competence is weak.
+
+\begin{center}
+\scriptsize
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Task & Correct & Wrong & Mean action \(L_2\)\\
+\midrule
+Drawer & 1/20 & 0/20 & 0.582\\
+Bowl   & 0/20 & 0/20 & 0.998\\
+Wine   & 0/20 & 0/20 & 0.966\\
+\bottomrule
+\end{tabular}\\[-1pt]
+{\scriptsize\textbf{Table 3.} Paired language control on identical starts.}
+\end{center}
+
+\subsection{A normalization failure that looked like forgetting}
+
+An early retention run used target-overlay statistics and produced 0/900.
+A controlled check showed that even the frozen seen policy drops from 12/15
+with seen statistics to 0/60 with target-overlay statistics.
+Therefore, 0/900 is a deployment-normalization failure, not evidence of weight
+forgetting. All retention numbers in this paper use the original
+\texttt{libero\_90} statistics.
+
+\clearpage
+
+\section{Predictions, rejected ideas, and lessons}
+
+\subsection{Predictions vs.\ results}
+
+\begin{itemize}
+  \item \textbf{Correct:} I predicted the largest gain between zero and five
+  demos, followed by saturation. The gain is 87.5 points at \(0\to5\);
+  \(N=10\to25\) changes by \(-1.7\) points. Adding \(N=1\) shows that almost
+  all of the gain arrives after the first demonstration.
+  \item \textbf{Wrong at \(N=1\):} I expected Replay-LoRA \(>\) Target-LoRA
+  \(>\) naive at low budget. The observed order is exactly the reverse.
+  I underestimated two effects: source-dependent action normalization and
+  how strongly small target updates can damage the seen policy.
+  \item \textbf{Partly supported:} wrong language changes the trajectory and
+  removes the only zero-shot success. Still, 1/60 vs.\ 0/60 is not enough to
+  claim strong instruction understanding.
+\end{itemize}
+
+The preregistration predicted the method order at \(N=5\), which I did not
+run after the \(N=1\) ceiling experiment. I therefore report the \(N=1\)
+falsification as evidence, not as a formal \(N=5\) test.
+
+\subsection{Idea graveyard}
+
+\textbf{Target-based hyperparameter sweeps.}
+A sweep could make LoRA look better, but it would tune on the three test tasks.
+I rejected it and kept rank 64, learning rate, steps, and 25\% replay fixed.
+
+\textbf{Target-overlay statistics for every deployment.}
+This looked simple, but the 2-by-2 control showed that statistics alone can
+zero a frozen policy. I rejected the earlier retention result and reran the
+protocol with \texttt{libero\_90} statistics.
+
+\textbf{Full VLM fine-tuning.}
+I considered updating the whole 450M model, but rejected it because the
+Action Expert baseline was already near ceiling, while full updates would add
+compute and a larger forgetting risk without testing the key low-data idea.
+
+\subsection{Most surprising result}
+
+The surprising result is not only that one demo works. It is that
+\emph{high target success and severe forgetting happen together}.
+At \(N=1\), the adapted policy gains 89.2 target points but loses 59.4 seen
+points. This suggests that the pretrained representation is useful, while
+the action distribution is easy to overwrite.
+
+\newpage
+
+\section{Scope, limitations, and conclusion}
+
+\subsection{Bonus status}
+
+I selected reward-free evaluation (Bonus B) as the next extension, but did not
+finish a learned video critic or the Robometer comparison. I make no bonus
+claim. The next honest test is to rank the frozen and adapted checkpoints
+without environment rewards, then compare this order with true success.
+
+\subsection{Limitations}
+
+There are only three target tasks and two training seeds. Twenty rollouts per
+task and cell still give wide intervals, and three seen probes are sentinels,
+not a full \texttt{libero\_90} evaluation. The \(N=1\) LoRA comparison tests
+parameter efficiency, not a complete search for the best adaptation method.
+Replay-LoRA's normalization bug is diagnosed but not repaired in these final
+numbers. Finally, all experiments are in simulation; real-robot noise may
+change the one-shot result.
+
+\subsection{Conclusion}
+
+I trained a reproducible SmolVLA seen expert and measured the complete naive
+cost curve, including the extra \(N=1,2\) ceiling regime. One target
+demonstration is enough for 90.8\% pooled success, but it is not enough for a
+stable lifelong policy. Neither Target-LoRA nor naive seen replay fixes this
+trade-off under the frozen protocol. The next method should use a common,
+frozen action coordinate system and an explicit constraint to preserve the
+seen policy. The central lesson is simple: \textbf{one shot is enough to learn
+the target, but not enough to remember everything else.}
+
+\subsection{Reproducibility}
+
+The first-page links provide the complete code, exact commands, frozen
+predictions, manifests, checksums, model weights, and result artifacts.
+The repository test suite passes 296 tests (8 skipped). The technical appendix
+contains per-task/per-seed results, training curves, hashes, and the full
+normalization audit.
+
+\vspace{-2pt}
+{\scriptsize
+\bibliographystyle{unsrt}
+\bibliography{references}
+}
+
+\end{document}

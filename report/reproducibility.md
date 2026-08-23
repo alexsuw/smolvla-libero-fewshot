@@ -1,7 +1,8 @@
 # Reproducibility
 
-This appendix is filled with live commands, hashes, and hardware after the
-GPU grid. The protocol below is frozen now.
+The complete reproducibility record is in the
+[technical appendix](latex/build/appendix.pdf). Its source is
+[appendix.tex](latex/appendix.tex).
 
 ## Pins
 
@@ -9,27 +10,29 @@ GPU grid. The protocol below is frozen now.
 - Model: `lerobot/smolvla_base` @ `c83c3163b8ca9b7e67c509fffd9121e66cb96205`
 - LeRobot git: `d451fe4f1f1b00a812f95aa9534389b5e42ab155`
 - Predictions: `predictions.md` (committed before any target results)
-- Pseudo-target freeze: `configs/splits/pseudo_target_splits.json`
-- Hyperparameters: `configs/calibration.yaml`
-- Seen checkpoint: `configs/selected_seen_checkpoint.yaml` (hash pending TODO 24)
+- Seen checkpoint: `step_100000`
+- Seen weights SHA-256: `2cd510a594a87580f7368b782ca9b37332c0e5002d807093c759e95fbfb57c88`
+- Seen statistics SHA-256: `b159b6fed3e52edf25bd39b377dd64940221b7a030362daf7f726b1c2ecb30cf`
+- Target train seeds: `42, 123`
+- Target evaluation seeds: `1000..1019`
+- Retention probes: three frozen `libero_90` probes, seeds `1000..1009`
 
-## Commands
+## Report build
+
+From `report/latex`:
 
 ```bash
-make check-reporting
-python scripts/collect_results.py --runs-root "$VLA_RUNS_DIR" --output-dir report/tables
-python scripts/plot_cost_curve.py --long report/tables/results_long.csv
-python scripts/make_report_tables.py --long report/tables/results_long.csv --bundle
-python scripts/sync_artifacts.py --source <run> --destination "$VLA_OBJECT_URI" --execute
-python scripts/verify_backup.py --object-uri "$VLA_OBJECT_URI" --source <run>
+make figures
+make paper
+make appendix
 ```
 
-Cost-curve figures are SVG with x ticks exactly `{0,5,10,25}`. PDF export is
-optional once a plotting extra is added; it is not required for the CPU
-report contract.
+The main paper is exactly four pages. The appendix contains all technical
+training figures and per-task/per-seed tables. Frozen final evidence is also
+summarized in `artifacts/validation/TASK2_N1/results.md`.
 
-## Known deviations
+## Validation
 
-- M1 hardware acceptance is `validated_m1` on the RTX PRO 6000 Blackwell VM.
-- Live LIBERO/SmolVLA eval and 100k seen-pretrain remain deferred until later gates.
-- Wrist image transform remains identity relative to the dataset/policy key.
+- Main PDF: 4 pages, no overfull boxes or missing glyphs.
+- Appendix PDF: 6 pages.
+- Repository suite: 296 passed, 8 skipped.
