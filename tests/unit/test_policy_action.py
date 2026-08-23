@@ -3,9 +3,7 @@ import sys
 import types
 from pathlib import Path
 
-import numpy as np
 import pytest
-import torch
 
 from vla_fewshot.env.action_adapter import (
     dataset_action_to_env,
@@ -29,6 +27,9 @@ class _MeanStdActionPost:
 
 
 def test_live_inference_seed_replays_policy_noise() -> None:
+    np = pytest.importorskip("numpy")
+    torch = pytest.importorskip("torch")
+
     def sample() -> tuple[float, float, float]:
         return random.random(), float(np.random.random()), float(torch.rand(()))
 
