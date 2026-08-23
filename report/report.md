@@ -1,19 +1,20 @@
 # Final report
 
-
 The frozen preregistration contained no final-target numerical claims; all
-numerical claims below were added only after the evaluation grid completed.
-The scientific report is complete:
+numerical claims were added only after their evaluation grids completed.
 
-- [Four-page main paper](latex/build/paper.pdf)
-- [Technical appendix](latex/build/appendix.pdf)
+- [Unified four-page paper and technical appendix](latex/build/paper.pdf)
 - [LaTeX source and build instructions](latex/README.md)
 
-The main result is a sharp target--retention trade-off. Naive adaptation with
-one target demonstration reaches 109/120 (90.8%) target success, but only
-37/180 (20.6%) corrected seen retention. Target-LoRA uses 23.7 times fewer
-trainable parameters and reaches 99/120 target success; Replay-LoRA reaches
-67/120. Neither low-rank method beats the matched naive baseline.
+The main result is a sharp target--retention trade-off. Naive one-shot
+adaptation reaches 90.8% target success and 20.6% corrected seen retention.
+Target-LoRA and Replay-LoRA do not improve this trade-off. Frozen statistics
+alone change retention by only +1.1 points. L2-SP reaches 87.5% target success
+and 31.7% retention: +11.1 retention points for -3.3 target points relative
+to Naive.
 
-The four-page paper contains the required cost curve, preregistered predictions,
-three real failure rollouts, idea graveyard, limitations, and bonus status.
+The first four pages follow the result-to-question narrative and contain the
+updated efficiency frontier, three real rollout strips, failures, predictions,
+and conclusion. The same PDF then gives exact protocols, percentage-and-count
+tables, per-task/per-seed results, training curves, hashes, and integrity
+evidence.

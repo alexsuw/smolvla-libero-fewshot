@@ -107,22 +107,96 @@ def plot_retention_curve() -> None:
 
 
 def plot_method_frontier() -> None:
-    methods = ["Naive", "Target-LoRA", "Replay-LoRA"]
-    target = np.array([90.8, 82.5, 55.8])
-    retention = np.array([20.6, 10.6, 1.1])
-    params = np.array([99.880992, 4.215632, 4.215632])
-    colors = [COLORS["blue"], COLORS["green"], COLORS["orange"]]
+    methods = ["Naive", "Frozen-Stats", "L2-SP", "Target-LoRA", "Replay-LoRA"]
+    target = np.array([90.8, 90.8, 87.5, 82.5, 55.8])
+    retention = np.array([20.6, 21.7, 31.7, 10.6, 1.1])
+    params = np.array([99.880992, 99.880992, 99.880992, 4.215632, 4.215632])
+    colors = [COLORS["blue"], COLORS["purple"], COLORS["red"], COLORS["green"], COLORS["orange"]]
 
     fig, ax = plt.subplots(figsize=(3.25, 2.10))
     sizes = 28 + 2.1 * params
     ax.scatter(retention, target, s=sizes, c=colors, alpha=0.9, edgecolor="white", linewidth=0.8)
-    offsets = [(5, 3), (5, 3), (5, 3)]
+    offsets = [(-24, 9), (5, 3), (5, -10), (5, 3), (5, 3)]
     for name, x, y, off in zip(methods, retention, target, offsets):
         ax.annotate(name, (x, y), xytext=off, textcoords="offset points", fontsize=6.8)
-    ax.set(xlabel="Seen retention (%)", ylabel="Target success (%)", xlim=(-2, 27), ylim=(48, 96))
+    ax.set(xlabel="Seen retention (%)", ylabel="Target success (%)", xlim=(-2, 36), ylim=(48, 96))
     ax.set_title("N=1 target--retention frontier")
     ax.text(0.02, 0.03, "Marker area $\\propto$ trainable parameters", transform=ax.transAxes, fontsize=6.2, color=COLORS["gray"])
     save(fig, "method_frontier")
+
+
+def plot_discovery_summary() -> None:
+    ns = np.array([0, 1, 2, 5, 10, 25])
+    target_wins = np.array([1, 109, 100, 107, 116, 114])
+    target_totals = np.array([60, 120, 120, 120, 120, 120])
+    target = target_wins / target_totals * 100
+    intervals = np.array([wilson(int(k), int(n)) for k, n in zip(target_wins, target_totals)]) * 100
+    retention = np.array([80.0, 20.6, 11.7, 0.0, 0.0, 0.0])
+
+    fig, axes = plt.subplots(1, 2, figsize=(6.8, 2.40))
+    ax = axes[0]
+    ax.errorbar(
+        ns,
+        target,
+        yerr=np.vstack((target - intervals[:, 0], intervals[:, 1] - target)),
+        color=COLORS["blue"],
+        marker="o",
+        lw=1.8,
+        capsize=2.5,
+    )
+    ax.scatter([1], [target[1]], s=70, facecolor="white", edgecolor=COLORS["orange"], lw=2.0, zorder=4)
+    for x, y, dy in zip(ns, target, [5, 7, -12, 5, 5, 5]):
+        ax.annotate(f"{y:.1f}", (x, y), xytext=(0, dy), textcoords="offset points", ha="center", fontsize=6.6)
+    ax.set(xticks=ns, xlabel="Target demonstrations, N", ylabel="Target success (%)", ylim=(-5, 108))
+    ax.set_title("(a) One demo reaches the high-success regime")
+
+    ax = axes[1]
+    ax.plot(ns, retention, color=COLORS["red"], marker="o", lw=1.8)
+    ax.fill_between(ns, retention, 0, color=COLORS["red"], alpha=0.08)
+    for x, y in zip(ns, retention):
+        ax.annotate(f"{y:.1f}", (x, y), xytext=(0, 5), textcoords="offset points", ha="center", fontsize=6.6)
+    ax.axhline(80, color=COLORS["gray"], lw=0.9, ls="--", label="Frozen seen policy")
+    ax.set(xticks=ns, xlabel="Target demonstrations, N", ylabel="Seen retention (%)", ylim=(-5, 90))
+    ax.set_title("(b) The same adaptation forgets seen skills")
+    ax.legend(loc="upper right", frameon=False)
+    fig.subplots_adjust(wspace=0.28)
+    save(fig, "discovery_summary")
+
+
+def plot_method_story() -> None:
+    methods = ["Naive", "Frozen-Stats", "L2-SP", "Target-LoRA", "Replay-LoRA"]
+    target = np.array([90.8, 90.8, 87.5, 82.5, 55.8])
+    retention = np.array([20.6, 21.7, 31.7, 10.6, 1.1])
+    params = np.array([99.880992, 99.880992, 99.880992, 4.215632, 4.215632])
+    colors = [COLORS["blue"], COLORS["purple"], COLORS["red"], COLORS["green"], COLORS["orange"]]
+
+    fig, axes = plt.subplots(1, 2, figsize=(6.8, 2.65), gridspec_kw={"width_ratios": [1.08, 0.92]})
+    ax = axes[0]
+    sizes = 28 + 2.1 * params
+    ax.scatter(retention, target, s=sizes, c=colors, alpha=0.9, edgecolor="white", linewidth=0.8)
+    offsets = [(-24, 9), (5, 3), (5, -10), (5, 3), (5, 3)]
+    for name, x, y, off in zip(methods, retention, target, offsets):
+        ax.annotate(name, (x, y), xytext=off, textcoords="offset points", fontsize=6.8)
+    ax.set(xlabel="Seen retention (%)", ylabel="Target success (%)", xlim=(-2, 36), ylim=(48, 96))
+    ax.set_title("(a) N=1 target--retention frontier")
+    ax.text(0.02, 0.03, "Marker area $\\propto$ trainable parameters", transform=ax.transAxes, fontsize=6.2, color=COLORS["gray"])
+
+    ax = axes[1]
+    probes = ["Black bowl\n/ plate", "Drawer\n/ bowl", "Book\n/ caddy"]
+    naive = np.array([35.0, 23.3, 3.3])
+    l2sp = np.array([35.0, 55.0, 5.0])
+    x = np.arange(len(probes))
+    width = 0.34
+    bars_naive = ax.bar(x - width / 2, naive, width, color=COLORS["blue"], label="Naive")
+    bars_l2sp = ax.bar(x + width / 2, l2sp, width, color=COLORS["red"], label="L2-SP")
+    ax.set(xticks=x, xticklabels=probes, ylabel="Seen success (%)", ylim=(0, 65))
+    ax.set_title("(b) L2-SP gain is probe-specific")
+    ax.legend(frameon=False, ncol=2, loc="upper left")
+    ax.bar_label(bars_naive, fmt="%.1f", fontsize=6.3, padding=2)
+    ax.bar_label(bars_l2sp, fmt="%.1f", fontsize=6.3, padding=2)
+    fig.subplots_adjust(wspace=0.32)
+    save(fig, "method_story")
+
 
 
 def read_metrics(path: Path) -> dict[str, np.ndarray]:
@@ -206,12 +280,35 @@ def plot_lora_diagnostics() -> None:
     save(fig, "lora_diagnostics")
 
 
+def plot_matched_diagnostics() -> None:
+    task_names = [("drawer_middle", "Drawer"), ("bowl_stove", "Bowl"), ("wine_cabinet", "Wine")]
+    methods = [
+        ("Naive", RUNS / "target_baseline_n12", COLORS["blue"]),
+        ("Frozen-Stats", RUNS / "target_matched_n1" / "frozen_stats", COLORS["purple"]),
+        ("L2-SP", RUNS / "target_matched_n1" / "anchored_l2sp", COLORS["red"]),
+    ]
+    fig, axes = plt.subplots(1, 3, figsize=(6.8, 2.25), sharex=True)
+    for ax, (slug, label) in zip(axes, task_names):
+        for method, root, color in methods:
+            paths = sorted(root.glob(f"{slug}_n01_*/metrics.csv"))
+            grid, median, spread = interpolate_traces(paths)
+            ax.plot(grid * 100, median, color=color, lw=1.25, label=method)
+            ax.fill_between(grid * 100, spread[0], spread[1], color=color, alpha=0.10)
+        ax.set(title=label, xlabel="Progress (%)")
+        ax.set_yscale("log")
+    axes[0].set_ylabel("Training loss (log scale)")
+    axes[-1].legend(frameon=False, fontsize=6.2, loc="best")
+    fig.suptitle("Matched N=1 training; bands span seeds 42 and 123", y=1.01, fontsize=8.5)
+    save(fig, "matched_diagnostics")
+
+
+
 def plot_compute() -> None:
-    methods = ["Naive", "Target-LoRA", "Replay-LoRA"]
-    wall = [162.8, 244.0, 309.3]
-    vram = [7540, 6944, 6944]
-    params = [99.880992, 4.215632, 4.215632]
-    colors = [COLORS["blue"], COLORS["green"], COLORS["orange"]]
+    methods = ["Naive", "Frozen\nstats", "L2-SP", "Target-\nLoRA", "Replay-\nLoRA"]
+    wall = [162.8, 311.3, 297.3, 244.0, 309.3]
+    vram = [7540, 7540, 8036, 6944, 6944]
+    params = [99.880992, 99.880992, 99.880992, 4.215632, 4.215632]
+    colors = [COLORS["blue"], COLORS["purple"], COLORS["red"], COLORS["green"], COLORS["orange"]]
     fig, axes = plt.subplots(1, 3, figsize=(6.8, 2.15))
     for ax, values, title, unit in zip(
         axes,
@@ -221,7 +318,7 @@ def plot_compute() -> None:
     ):
         bars = ax.bar(methods, values, color=colors, width=0.68)
         ax.set(title=title, ylabel=unit)
-        ax.tick_params(axis="x", rotation=25)
+        ax.tick_params(axis="x", rotation=0)
         ax.bar_label(bars, fmt="%.1f", fontsize=6.3, padding=2)
     fig.suptitle("Measured N=1 training cost (six cells per method)", y=1.01, fontsize=8.5)
     save(fig, "compute_cost")
@@ -231,9 +328,12 @@ def main() -> None:
     plot_cost_curve()
     plot_retention_curve()
     plot_method_frontier()
+    plot_discovery_summary()
+    plot_method_story()
     plot_seen_training()
     plot_baseline_training()
     plot_lora_diagnostics()
+    plot_matched_diagnostics()
     plot_compute()
 
 

@@ -811,15 +811,24 @@ Evidence: report/tables/task2_n1_results.md,
 
 ## Scientific report
 
-Status: complete. The main scientific paper is exactly four pages and the
-separate technical appendix is six pages. Both PDFs compile cleanly with no
-overfull boxes, missing glyphs, or undefined citations.
+Status: complete and updated through Frozen-Stats/L2-SP. The first four pages
+are the main scientific report; the technical appendix follows in the same
+source and compiled PDF. The 11-page PDF compiles with no overfull boxes,
+missing glyphs, undefined references, or duplicate figure/table anchors.
+
+Latest matched N=1 result:
+
+- Frozen-Stats: target 109/120 (90.8%), retention 39/180 (21.7%);
+- L2-SP: target 105/120 (87.5%), retention 57/180 (31.7%);
+- relative to Naive, L2-SP changes target by -3.3 points and retention by
+  +11.1 points;
+- all 600 new rollouts were independently recounted; integrity_ok=true;
+- complete 12-cell grid: 47m39s, or about 58 minutes including preflight.
 
 Deliverables:
 
-- `report/latex/paper.tex` and `report/latex/build/paper.pdf`;
-- `report/latex/appendix.tex` and `report/latex/build/appendix.pdf`;
-- reproducible plot source under `report/latex/scripts/`;
+- unified report/latex/paper.tex and report/latex/build/paper.pdf;
+- reproducible plot source under report/latex/scripts/;
 - generated evaluation/training figures and three real rollout frame strips
-  under `report/latex/imgs/`;
-- build instructions in `report/latex/README.md`.
+  under report/latex/imgs/;
+- build instructions in report/latex/README.md.
