@@ -126,7 +126,7 @@ def test_replay_does_not_change_target_episode_ids() -> None:
 
 
 def test_mixed_collate_drops_suite_specific_optional_fields() -> None:
-    import torch
+    torch = pytest.importorskip("torch")
 
     common = {
         "observation.images.image": torch.zeros(3, 2, 2),
@@ -143,7 +143,7 @@ def test_mixed_collate_drops_suite_specific_optional_fields() -> None:
 
 
 def test_mixed_collate_fails_when_a_required_policy_field_differs() -> None:
-    import torch
+    torch = pytest.importorskip("torch")
 
     target = {
         "observation.images.image": torch.zeros(3, 2, 2),
