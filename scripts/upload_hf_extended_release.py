@@ -575,9 +575,8 @@ def _upload_metadata(api, family: FamilySpec, release: dict[str, Any]) -> None:
 
 def _update_collection(api, *, private: bool) -> None:
     description = (
-        "Frozen LIBERO-90 SmolVLA origin, 30 naive few-shot checkpoints, "
-        "12 N=1 LoRA/replay checkpoints, and 12 matched frozen-stats/L2-SP "
-        "checkpoints. Code: alexsuw/smolvla-libero-fewshot"
+        "SmolVLA LIBERO seen origin and Naive, LoRA, Replay, Frozen-Stats, "
+        "and L2-SP few-shot checkpoints."
     )
     api.update_collection_metadata(
         COLLECTION_SLUG,
