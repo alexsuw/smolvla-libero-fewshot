@@ -3,7 +3,6 @@ import subprocess
 import sys
 
 import pytest
-import torch
 
 from vla_fewshot.config import TrainConfig, load_config
 from vla_fewshot.evaluation.normalization import normalization_stats_suite
@@ -86,17 +85,18 @@ def test_method_specific_config_fields_fail_closed() -> None:
         TrainConfig.model_validate(baseline)
 
 
-class _ToyPolicy(torch.nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
-        self.weight = torch.nn.Parameter(torch.tensor([1.0, 2.0]))
-        self.frozen = torch.nn.Parameter(
-            torch.tensor([4.0]), requires_grad=False
-        )
-
-
 def test_l2sp_anchor_tracks_exact_trainable_parameters_in_fp32() -> None:
-    policy = _ToyPolicy()
+    torch = pytest.importorskip("torch")
+
+    class ToyPolicy(torch.nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.weight = torch.nn.Parameter(torch.tensor([1.0, 2.0]))
+            self.frozen = torch.nn.Parameter(
+                torch.tensor([4.0]), requires_grad=False
+            )
+
+    policy = ToyPolicy()
     anchor = capture_l2sp_anchor(policy)
     assert anchor.parameter_count == 2
     assert anchor.parameters["weight"].dtype == torch.float32
