@@ -4,9 +4,6 @@ Reproducible few-shot adaptation of [SmolVLA](https://huggingface.co/lerobot/smo
 on [LIBERO](https://github.com/Lifelong-Robot-Learning/LIBERO), using the NVIDIA
 LeRobot v3 conversion of the benchmark.
 
-The executable contract is [`PROJECT_SPEC.md`](PROJECT_SPEC.md). Progress and
-validation evidence are in [`STATUS.md`](STATUS.md).
-
 ## Task
 
 After domain-adapting SmolVLA on **seen** `libero_90` demonstrations, how many
